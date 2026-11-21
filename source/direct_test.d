@@ -103,3 +103,21 @@ unittest {
     assert(stuckAt(kept, "/t/a.jsonl", 340) == 0, "past it, it is not stuck");
     assert(stuckAt(kept, "/t/c.jsonl", 0) == 0);
 }
+
+// 600 lines a second stopped k's node: "the operational store did not answer
+// in 1m0s" (2026-11-21T14:59Z). A batch is small, and the wait after one is
+// twice what the node took to answer it, so the node gives this at most a
+// third of its time.
+unittest {
+    import direct : waitAfter, BATCH_BYTES;
+    enum content = `{"a":1}` ~ "\n" ~ `{"a":2}` ~ "\n" ~ `{"a":3}` ~ "\n";
+    __gshared Batch b;
+    batchFrom(b, content, 0, "/t/c.jsonl", "s", 1, 256, 10);
+    assert(b.rows == 1, "a batch past its bytes takes no more rows, and always one");
+    batchFrom(b, content, 0, "/t/c.jsonl", "s", 1, 256, BATCH_BYTES);
+    assert(b.rows == 3);
+
+    assert(waitAfter(1_000_000) == 2_000_000, "twice what the node took");
+    assert(waitAfter(10_000) == 250_000, "and never less than a quarter second");
+    assert(waitAfter(60_000_000) == 30_000_000, "nor more than half a minute");
+}

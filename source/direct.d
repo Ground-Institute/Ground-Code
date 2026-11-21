@@ -21,6 +21,21 @@ enum BODY_CAP = 10 * 1024 * 1024;
 enum BATCH_ROWS = 256;
 enum READ_MOST = 4 * 1024 * 1024;
 
+// "its really important the stream ground produces stops hammering the box"
+// 600 lines a second, in batches of megabytes, stopped k's node: "the
+// operational store did not answer in 1m0s" (2026-11-21T14:59Z). A batch takes
+// no more rows once it is past BATCH_BYTES, and the wait after one is twice
+// what the node took to answer it: the node gives this a third of its time at most.
+enum BATCH_BYTES = 256 * 1024;
+
+// How long to wait after a batch the node took `tookUs` to answer, in microseconds.
+long waitAfter(long tookUs) {
+    auto w = tookUs * 2;
+    if (w < 250_000) return 250_000;
+    if (w > 30_000_000) return 30_000_000;
+    return w;
+}
+
 struct Batch {
     char[BODY_CAP] data = 0;
     size_t len;
@@ -86,7 +101,7 @@ private void putJson(ref Batch b, const(char)[] s) {
 // reached the node another way is the same row there. At most `most` rows, and
 // no row that would take the list past what the node takes.
 void batchFrom(ref Batch b, const(char)[] content, long base, const(char)[] path,
-               const(char)[] session, long now, long most) {
+               const(char)[] session, long now, long most, size_t mostBytes = BODY_CAP) {
     import parse : extractJsonString;
     import collected : epochOf;
     b.reset();
@@ -94,6 +109,8 @@ void batchFrom(ref Batch b, const(char)[] content, long base, const(char)[] path
     b.put("[");
     size_t at = 0;
     while (at < content.length && b.rows < most) {
+        // One row always; no more once the batch is past its bytes.
+        if (b.rows > 0 && b.len >= mostBytes) break;
         auto e = at;
         while (e < content.length && content[e] != '\n') e++;
         if (e == content.length) break;
@@ -343,7 +360,7 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
         fseek(f, from, SEEK_SET);
         auto got = fread(buf, 1, READ_MOST, f);
         if (got == 0) break;
-        batchFrom(b, buf[0 .. got], from, path, session, cast(long) time(null), BATCH_ROWS);
+        batchFrom(b, buf[0 .. got], from, path, session, cast(long) time(null), BATCH_ROWS, BATCH_BYTES);
         if (b.rows == 0) {
             // No whole line in what was read: one still being written, or one
             // longer than a read. The second is said, never passed over.
@@ -354,7 +371,15 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
             }
             break;
         }
+        import hookrun : usecNow;
+        auto asked = usecNow();
         auto upTo = sendBatch(primary, node, b, s);
+        auto took = usecNow() - asked;
+        scope (exit) {
+            // The node's own pace: it rests twice as long as the batch took it.
+            import core.sys.posix.unistd : usleep;
+            if (upTo != -1) usleep(cast(uint) waitAfter(took));
+        }
         if (upTo == -2) {
             recordSent(path, b.refusedAt);
             recordStuck(path, b.refusedAt, cast(long) time(null));
