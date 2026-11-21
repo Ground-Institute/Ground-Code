@@ -29,6 +29,8 @@ int handleKeepSend(const(char)[] node) {
     auto s = sendDirect(here.url, node, root, 60);
     fprintf(stdout, "ground keep send: %lld lines of %lld files sent to %.*s, %lld files stopped at a line it refused\n",
             s.rows, s.files, cast(int) node.length, node.ptr, s.stuck);
+    fprintf(stdout, "ground keep send: largest batch %lld lines, slowest answer %lld ms\n",
+            s.mostRows, s.slowestUs / 1000);
     if (s.busy) {
         fputs("ground keep send: busy: the node was slow over a batch, and is left alone\n", stderr);
         return 2;

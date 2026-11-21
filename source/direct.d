@@ -41,6 +41,28 @@ bool nodeBusy(long tookUs) {
     return tookUs > BUSY_US;
 }
 
+// "considering there will be stretches where k wont be ringing the bell, as in,
+// no deploys during the night"
+// A pass starts at the trickle. A batch the node answers in under FAST_US is
+// followed by one twice its size, up to BATCH_ROWS and BATCH_BYTES; a batch it
+// is busy over brings the next back to the trickle.
+enum FAST_US = 500_000;
+
+struct Pace {
+    long rows = TRICKLE_ROWS;
+    size_t bytes = TRICKLE_BYTES;
+}
+
+void paceAfter(ref Pace p, long tookUs) {
+    if (nodeBusy(tookUs)) {
+        p = Pace.init;
+        return;
+    }
+    if (tookUs >= FAST_US) return;
+    p.rows = p.rows * 2 > BATCH_ROWS ? BATCH_ROWS : p.rows * 2;
+    p.bytes = p.bytes * 2 > BATCH_BYTES ? BATCH_BYTES : p.bytes * 2;
+}
+
 // How long to wait after a batch the node took `tookUs` to answer, in microseconds.
 long waitAfter(long tookUs) {
     auto w = tookUs * 2;
@@ -267,6 +289,9 @@ struct Sent {
     bool busy;        // the node was slow over a batch: it is left alone
     long stuck;       // files stopped at a line the node refused
     long rows;
+    long mostRows;    // the largest batch that landed
+    long slowestUs;   // the longest the node took over a batch
+    Pace pace;        // the size of the next batch
     long files;
     char[400] whyBuf = 0;
     size_t whyLen;
@@ -377,7 +402,7 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
         fseek(f, from, SEEK_SET);
         auto got = fread(buf, 1, READ_MOST, f);
         if (got == 0) break;
-        batchFrom(b, buf[0 .. got], from, path, session, cast(long) time(null), TRICKLE_ROWS, TRICKLE_BYTES);
+        batchFrom(b, buf[0 .. got], from, path, session, cast(long) time(null), s.pace.rows, s.pace.bytes);
         if (b.rows == 0) {
             // No whole line in what was read: one still being written, or one
             // longer than a read. The second is said, never passed over.
@@ -406,6 +431,9 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
         recordSent(path, upTo);
         from = upTo;
         any = true;
+        if (b.rows > s.mostRows) s.mostRows = b.rows;
+        if (took > s.slowestUs) s.slowestUs = took;
+        paceAfter(s.pace, took);
         // The batch landed, and the node was slow over it: it is left alone.
         if (nodeBusy(took)) {
             s.halt = true;

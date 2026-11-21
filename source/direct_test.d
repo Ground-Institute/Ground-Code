@@ -133,3 +133,22 @@ unittest {
     assert(!nodeBusy(1_999_999));
     assert(nodeBusy(2_000_001), "slower than two seconds over sixteen lines is a node to leave alone");
 }
+
+// "considering there will be stretches where k wont be ringing the bell, as in,
+// no deploys during the night"
+// A batch the node answers fast is followed by one twice its size, up to
+// BATCH_ROWS and BATCH_BYTES; one it is slow over brings the next back to the
+// trickle. The node's own answers set the size, not the clock.
+unittest {
+    import direct : Pace, paceAfter, TRICKLE_ROWS, TRICKLE_BYTES, BATCH_ROWS, BATCH_BYTES, FAST_US;
+    Pace p;
+    assert(p.rows == TRICKLE_ROWS && p.bytes == TRICKLE_BYTES, "a pass starts at the trickle");
+    paceAfter(p, FAST_US - 1);
+    assert(p.rows == 2 * TRICKLE_ROWS && p.bytes == 2 * TRICKLE_BYTES, "a fast answer doubles the next batch");
+    foreach (i; 0 .. 10) paceAfter(p, 1000);
+    assert(p.rows == BATCH_ROWS && p.bytes == BATCH_BYTES, "and never past a batch");
+    paceAfter(p, FAST_US + 1);
+    assert(p.rows == BATCH_ROWS, "an answer neither fast nor slow keeps the size");
+    paceAfter(p, 2_000_001);
+    assert(p.rows == TRICKLE_ROWS && p.bytes == TRICKLE_BYTES, "a slow answer goes back to the trickle");
+}
