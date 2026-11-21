@@ -11,7 +11,30 @@ import core.stdc.stdio : stderr, stdout, fputs, fprintf;
 enum BOOK_COMMAND = q"EOS
 # every transcript's lines kept, and each file checked against what was kept:
 ground keep
+# what is kept sent to a node reached directly, the primary signing and carrying none of it:
+ground keep send http://k.tail.sbvh.nl:8770
 EOS";
+
+// "q signs, data direct"
+// ground keep send <node>: the kept lines to the node named, from where each
+// file was last sent up to, for a minute; the stream's node signs (direct.d).
+int handleKeepSend(const(char)[] node) {
+    import direct : sendDirect;
+    import nodeconfig : nodeHere;
+    import transcript : projectsRoot;
+    auto here = nodeHere();
+    if (here.url.length == 0) { fputs("ground keep send: this ground streams to no node, so nobody signs\n", stderr); return 1; }
+    auto root = projectsRoot();
+    if (root.length == 0) { fputs("ground keep send: no HOME, so no ~/.claude/projects\n", stderr); return 1; }
+    auto s = sendDirect(here.url, node, root, 60);
+    fprintf(stdout, "ground keep send: %lld lines of %lld files sent to %.*s, %lld files stopped at a line it refused\n",
+            s.rows, s.files, cast(int) node.length, node.ptr, s.stuck);
+    if (!s.ok) {
+        fprintf(stderr, "ground keep send: stopped: %.*s\n", cast(int) s.why().length, s.why().ptr);
+        return 1;
+    }
+    return 0;
+}
 
 int handleKeep() {
     import db : openDb, sqlite3_close;

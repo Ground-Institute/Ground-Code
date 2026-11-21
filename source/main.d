@@ -95,7 +95,13 @@ extern (C) int main(int argc, const(char)** argv) {
             return handleScrub();
         }
         if (cmd == "keep") {
-            import keepcmd : handleKeep;
+            import keepcmd : handleKeep, handleKeepSend;
+            if (argc >= 4) {
+                size_t al = 0, nl = 0;
+                while (argv[2][al] != 0) al++;
+                while (argv[3][nl] != 0) nl++;
+                if (argv[2][0 .. al] == "send") return handleKeepSend(argv[3][0 .. nl]);
+            }
             return handleKeep();
         }
         if (cmd == "decay") {

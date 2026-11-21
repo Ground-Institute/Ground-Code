@@ -116,7 +116,7 @@ struct ToNode {
 private Http perform(const(char)[] url, const(char)[] body_, bool isPost,
                      const(char)[] token, bool signs, const(char)[] contentType,
                      char[] dest, int timeoutSec, const(char)[] protocols, Abort abort = Abort.init,
-                     const(char)* key = null) {
+                     const(char)* key = null, const(char)[] authorization = null) {
     Http r;
 
     void say(const(char)[] s) {
@@ -148,7 +148,14 @@ private Http perform(const(char)[] url, const(char)[] body_, bool isPost,
     scope (exit) if (headers !is null) curl_slist_free_all(headers);
 
     import signed : authLine;
-    authLine(authZ, url, token, signs, key);
+    if (authorization.length > 0) {
+        // The caller was handed what to present (direct.d): it goes as it is.
+        authZ.reset();
+        authZ.put("Authorization: ");
+        authZ.put(authorization);
+    } else {
+        authLine(authZ, url, token, signs, key);
+    }
     if (authZ.len > 0) headers = curl_slist_append(headers, authZ.ptr());
     if (isPost && contentType.length > 0) {
         typeZ.reset();
@@ -342,6 +349,13 @@ Http httpPostInto(const(char)[] url, const(char)[] body_, const(char)[] token, c
 Http httpPostInto(const(char)[] url, const(char)[] body_, ToNode node, char[] dest,
                   int timeoutSec = 10, const(char)[] contentType = "application/json", Abort abort = Abort.init) {
     return perform(url, body_, true, null, true, contentType, dest, timeoutSec, WEB, abort, node.key);
+}
+
+// A POST under an Authorization the caller was handed whole, a node's own
+// signature for it among them (direct.d). Nothing of ground's is added to it.
+Http httpPostAs(const(char)[] url, const(char)[] body_, const(char)[] authorization, char[] dest,
+                int timeoutSec = 10, const(char)[] contentType = "application/json") {
+    return perform(url, body_, true, null, false, contentType, dest, timeoutSec, WEB, Abort.init, null, authorization);
 }
 
 // The HTTP status, or 0 when there was none. For a caller that reads only the

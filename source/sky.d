@@ -583,6 +583,8 @@ int handleSky(int argc, const(char)** argv) {
 
     // "i dont want to come back, and find out i missed something"
     long sweptAt = 0;
+    // "q signs, data direct"
+    long directAt = 0;
 
     // The binary this sky runs, as it was when it started.
     import ritual.command : ownBinary;
@@ -819,6 +821,16 @@ int handleSky(int argc, const(char)** argv) {
             }
             sqlite3_close(db);
             askDue(due, sessionId, now);
+
+            // The kept lines, to the node itself, with the store shut: the
+            // primary signs and carries none of it (direct.d).
+            {
+                import direct : directPass, DIRECT_EVERY;
+                if (now - directAt >= DIRECT_EVERY) {
+                    directAt = now;
+                    directPass(node.url, sessionId);
+                }
+            }
 
             // A comet is pulled: the node's comet of this repository, when it moved. A node that
             // answers its own machine without a token is asked without one (bearerLine).

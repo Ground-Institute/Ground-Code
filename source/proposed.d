@@ -230,7 +230,7 @@ const(char)[] keepIn(const(char)[] bindings, const(char)[] vaults, const(char)[]
 
 // Text as it stands inside a JSON string: the quote, the backslash and every
 // control character, a newline among them, escaped.
-private void jsonInto(const(char)[] s, char[] dst, ref size_t n) {
+void jsonInto(const(char)[] s, char[] dst, ref size_t n) {
     enum hex = "0123456789abcdef";
     void put(const(char)[] t) { foreach (c; t) if (n < dst.length) dst[n++] = c; }
     foreach (c; s) {
