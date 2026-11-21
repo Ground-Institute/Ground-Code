@@ -28,6 +28,19 @@ enum READ_MOST = 4 * 1024 * 1024;
 // what the node took to answer it: the node gives this a third of its time at most.
 enum BATCH_BYTES = 256 * 1024;
 
+// Paced by twice the node's answer time, k's node still stopped (2026-11-21
+// 17:11Z); it was at 49% I/O wait with nothing sent to it. A batch is sixteen
+// lines of at most 64 KB together, and a node that takes more than two seconds
+// over one is busy: the pass ends there, and nothing more is sent until the
+// caller comes back. What this adds to a node in trouble is one small write.
+enum TRICKLE_ROWS = 16;
+enum TRICKLE_BYTES = 64 * 1024;
+enum BUSY_US = 2_000_000;
+
+bool nodeBusy(long tookUs) {
+    return tookUs > BUSY_US;
+}
+
 // How long to wait after a batch the node took `tookUs` to answer, in microseconds.
 long waitAfter(long tookUs) {
     auto w = tookUs * 2;
@@ -251,6 +264,7 @@ struct Sent {
     bool ok = true;
     bool unreachable; // a far end did not answer: nothing to say of it each minute
     bool halt;        // no batch can go on: a far end is away, or refused the request whole
+    bool busy;        // the node was slow over a batch: it is left alone
     long stuck;       // files stopped at a line the node refused
     long rows;
     long files;
@@ -363,7 +377,7 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
         fseek(f, from, SEEK_SET);
         auto got = fread(buf, 1, READ_MOST, f);
         if (got == 0) break;
-        batchFrom(b, buf[0 .. got], from, path, session, cast(long) time(null), BATCH_ROWS, BATCH_BYTES);
+        batchFrom(b, buf[0 .. got], from, path, session, cast(long) time(null), TRICKLE_ROWS, TRICKLE_BYTES);
         if (b.rows == 0) {
             // No whole line in what was read: one still being written, or one
             // longer than a read. The second is said, never passed over.
@@ -392,6 +406,13 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
         recordSent(path, upTo);
         from = upTo;
         any = true;
+        // The batch landed, and the node was slow over it: it is left alone.
+        if (nodeBusy(took)) {
+            s.halt = true;
+            s.busy = true;
+            if (s.whyLen == 0) s.say("the node was slow over a batch, and is left alone");
+            break;
+        }
     }
     if (any) s.files++;
 }

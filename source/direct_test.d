@@ -121,3 +121,15 @@ unittest {
     assert(waitAfter(10_000) == 250_000, "and never less than a quarter second");
     assert(waitAfter(60_000_000) == 30_000_000, "nor more than half a minute");
 }
+
+// Paced by twice the node's answer time, k's node still stopped (2026-11-21
+// 17:11Z): k was at 49% I/O wait with nothing sent to it. A batch is sixteen
+// lines, and a node that takes more than two seconds over one is busy: the
+// pass ends there and nothing more is sent until the caller comes back.
+unittest {
+    import direct : nodeBusy, TRICKLE_ROWS, TRICKLE_BYTES;
+    assert(TRICKLE_ROWS == 16);
+    assert(TRICKLE_BYTES == 64 * 1024);
+    assert(!nodeBusy(1_999_999));
+    assert(nodeBusy(2_000_001), "slower than two seconds over sixteen lines is a node to leave alone");
+}
