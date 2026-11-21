@@ -166,7 +166,12 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
 
     if (db !is null) sqlite3_close(db);
 
-    if (!any) return 0;
+    // "but you would think, it should be Cumulus, no ?"
+    // A name taken at laye since the session started (`ground name`) is what
+    // Claude Code is to call it, when it calls it anything else.
+    const(char)[] title = layeTitle(sessionId);
+
+    if (!any && title is null) return 0;
 
     fputs(`{`, stdout);
     // The switch is said to the person who said the words, not only to the model.
@@ -177,9 +182,32 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
         fputs(`",`, stdout);
     }
     fputs(`"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"`, stdout);
-    fwrite(&ctx.data[0], 1, ctx.len, stdout);
+    if (ctx.len > 0) fwrite(&ctx.data[0], 1, ctx.len, stdout);
+    if (title !is null) {
+        import parse : writeJsonString;
+        fputs(`","sessionTitle":"`, stdout);
+        writeJsonString(title);
+    }
     fputs(`"}}`, stdout);
     fputs("\n", stdout);
 
     return 0;
+}
+
+// The name laye holds for the session, kept beside its key, when Claude Code
+// calls the session anything else; null when they agree or none is kept.
+const(char)[] layeTitle(const(char)[] sessionId) {
+    import naming : keptName, harnessName, sessionKeyFile;
+    import nodeconfig : nodeHere;
+    import sky : getppid;
+    if (sessionId.length == 0) return null;
+    auto here = nodeHere();
+    if (here.sandUrl.length == 0) return null;
+    __gshared char[256] keptBuf;
+    auto kept = keptName(sessionKeyFile(sessionId), here.sandUrl, keptBuf[]);
+    if (kept is null || kept.length == 0) return null;
+    char[256] harnessBuf;
+    auto called = harnessName(getppid(), harnessBuf[]);
+    if (called !is null && called == kept) return null;
+    return kept;
 }
