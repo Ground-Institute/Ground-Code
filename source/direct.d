@@ -13,6 +13,10 @@ module direct;
 // 「[Fable 5.2] beside the store. The store's write lock is never taken here.」
 
 import zbuf : ZBuf;
+import db : sqlite3;
+import stream : SKELETON_SQL;
+
+private enum DIRECT_ONLY_TEXT = () { import db : DIRECT_ONLY; import std.conv : to; return DIRECT_ONLY.to!string; }();
 
 // The node refuses a request body larger than this (stream.d, NODE_BODY_CAP).
 enum BODY_CAP = 10 * 1024 * 1024;
@@ -194,6 +198,58 @@ void batchFrom(ref Batch b, const(char)[] content, long base, const(char)[] path
         b.end = base + cast(long) at;
     }
     b.put("]");
+}
+
+// ---- the hook rows set aside ----
+
+// "i want all agent traces"
+// The hook rows set aside from the stream through q (db.d, DIRECT_ONLY) go to
+// the node directly as well. How far they were sent is kept beside the files',
+// under this name, as the last rowid sent; a refused row is stuck the same way.
+enum STORE_KEY = "store:attestations";
+
+// The shape the stream gives a row (stream.d): a tool's output stays home.
+enum SET_ASIDE_SQL = "SELECT rowid, json_object('id', id, 'subjects', json(subjects), 'predicates', json(predicates), "
+    ~ "'contexts', json(contexts), 'actors', json(actors), "
+    ~ "'timestamp', CAST(strftime('%s', timestamp) AS INTEGER), 'source', source, "
+    ~ "'attributes', json(" ~ SKELETON_SQL ~ ")) "
+    ~ "FROM attestations WHERE rowid > ?1 AND qntx_at = " ~ DIRECT_ONLY_TEXT ~ " "
+    ~ "AND json_extract(predicates, '$[0]') != 'transcript:line' ORDER BY rowid LIMIT ?2\0";
+
+// The set-aside rows after rowid `after`, at most `most` and no more once past
+// `mostBytes`, into `b`: starts are their rowids, end the last one taken.
+void rowsBatch(sqlite3* db, ref Batch b, long after, long most, size_t mostBytes) {
+    import db : sqlite3_stmt, sqlite3_prepare_v2, sqlite3_bind_int64, sqlite3_step,
+        sqlite3_column_int64, sqlite3_column_text, sqlite3_finalize, SQLITE_OK, SQLITE_ROW;
+    b.reset();
+    b.end = after;
+    b.put("[");
+    scope (exit) b.put("]");
+    enum sql = SET_ASIDE_SQL;
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK) return;
+    scope (exit) sqlite3_finalize(stmt);
+    sqlite3_bind_int64(stmt, 1, after);
+    sqlite3_bind_int64(stmt, 2, most);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        if (b.rows > 0 && b.len >= mostBytes) break;
+        auto rowid = sqlite3_column_int64(stmt, 0);
+        auto text = sqlite3_column_text(stmt, 1);
+        if (text is null) continue;
+        size_t n = 0;
+        while (text[n] != 0) n++;
+        auto mark = b.len;
+        if (b.rows > 0) b.put(",");
+        b.put((cast(const(char)*) text)[0 .. n]);
+        if (b.over || b.len + 1 > b.data.length) {
+            b.len = mark;
+            b.over = false;
+            break;
+        }
+        if (b.rows < b.starts.length) b.starts[b.rows] = rowid;
+        b.rows++;
+        b.end = rowid;
+    }
 }
 
 // ---- a file the node refused a line of ----
@@ -445,6 +501,52 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
     if (any) s.files++;
 }
 
+// The set-aside rows from where they were last sent, until none are left, the
+// deadline, or a failure: paced as a file is.
+private void sendRows(const(char)[] primary, const(char)[] node, sqlite3* db,
+                      const(char)[] sentLines, const(char)[] stuckLines, long deadline, ref Sent s) {
+    import core.stdc.time : time;
+    import hookrun : usecNow;
+    import core.sys.posix.unistd : usleep;
+    auto from = sentUpTo(sentLines, STORE_KEY);
+    {
+        auto since = stuckAt(stuckLines, STORE_KEY, from);
+        if (since > 0 && cast(long) time(null) - since < STUCK_WAIT) return;
+    }
+    __gshared Batch b;
+    bool any = false;
+    while (!s.halt && cast(long) time(null) < deadline) {
+        rowsBatch(db, b, from, s.pace.rows, s.pace.bytes);
+        if (b.rows == 0) {
+            if (b.len > 2) { s.ok = false; s.say("a set-aside row larger than the node takes"); }
+            break;
+        }
+        auto asked = usecNow();
+        auto upTo = sendBatch(primary, node, b, s);
+        auto took = usecNow() - asked;
+        if (upTo != -1) usleep(cast(uint) waitAfter(took));
+        if (upTo == -2) {
+            recordSent(STORE_KEY, b.refusedAt - 1);
+            recordStuck(STORE_KEY, b.refusedAt - 1, cast(long) time(null));
+            break;
+        }
+        if (upTo < 0) break;
+        recordSent(STORE_KEY, upTo);
+        from = upTo;
+        any = true;
+        if (b.rows > s.mostRows) s.mostRows = b.rows;
+        if (took > s.slowestUs) s.slowestUs = took;
+        paceAfter(s.pace, took);
+        if (nodeBusy(took)) {
+            s.halt = true;
+            s.busy = true;
+            if (s.whyLen == 0) s.say("the node was slow over a batch, and is left alone");
+            break;
+        }
+    }
+    if (any) s.files++;
+}
+
 private void sendDir(const(char)[] primary, const(char)[] node, const(char)[] dir,
                      const(char)[] sentLines, const(char)[] stuckLines, long deadline, ref Sent s, int depth) {
     import core.sys.posix.dirent : opendir, readdir, closedir, DT_DIR, DT_REG;
@@ -498,7 +600,19 @@ Sent sendDirect(const(char)[] primary, const(char)[] node, const(char)[] root, i
         auto f = fopen(st, "r");
         if (f !is null) { sn = fread(stuckLines.ptr, 1, stuckLines.length, f); fclose(f); }
     }
-    sendDir(primary, node, root, sentLines[0 .. n], stuckLines[0 .. sn], cast(long) time(null) + seconds, s, 0);
+    auto deadline = cast(long) time(null) + seconds;
+    // The hook rows set aside first, read from the store without its write
+    // lock: 156 MB of them against 2.5 GB of transcript lines on 2026-11-21.
+    {
+        import db : openDb, sqlite3_close;
+        auto db = openDb();
+        if (db !is null) {
+            sendRows(primary, node, db, sentLines[0 .. n], stuckLines[0 .. sn], deadline, s);
+            sqlite3_close(db);
+        }
+    }
+    if (!s.halt && cast(long) time(null) < deadline)
+        sendDir(primary, node, root, sentLines[0 .. n], stuckLines[0 .. sn], deadline, s, 0);
     return s;
 }
 

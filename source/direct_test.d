@@ -152,3 +152,44 @@ unittest {
     paceAfter(p, 2_000_001);
     assert(p.rows == TRICKLE_ROWS && p.bytes == TRICKLE_BYTES, "a slow answer goes back to the trickle");
 }
+
+// "i want all agent traces"
+// The hook rows set aside from the stream through q (DIRECT_ONLY) go to the node
+// directly too, read from the store in rowid order from where they were last
+// sent, in the shape the stream gives a row: a tool's output stays home.
+// A kept transcript line is not among them; it goes from its file.
+unittest {
+    import direct : rowsBatch, STORE_KEY;
+    import db : sqlite3_exec;
+    sqlite3* db;
+    assert(sqlite3_open(":memory:", &db) == SQLITE_OK);
+    assert(applySchema(db));
+    enum ins = "INSERT INTO attestations (id, subjects, predicates, contexts, actors, timestamp, source, attributes, qntx_at) VALUES "
+        ~ "('a', '[\"s\"]', '[\"Stop\"]', '[\"c\"]', '[\"ground\"]', '2026-10-01T00:00:00Z', 'ground', '{\"x\":1}', 2),"
+        ~ "('b', '[\"s\"]', '[\"transcript:line\"]', '[\"c\"]', '[\"ground\"]', '2026-10-01T00:00:00Z', 'ground', '{\"line\":\"l\"}', 2),"
+        ~ "('c', '[\"s\"]', '[\"Stop\"]', '[\"c\"]', '[\"ground\"]', '2026-10-01T00:00:00Z', 'ground', '{\"x\":2}', 0),"
+        ~ "('d', '[\"s\"]', '[\"PostToolUse\"]', '[\"c\"]', '[\"ground\"]', '2026-10-01T00:00:00Z', 'ground', "
+        ~ "'{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"},\"tool_response\":\"SECRET-OUTPUT\"}', 2),"
+        ~ "('e', '[\"s\"]', '[\"Notification\"]', '[\"c\"]', '[\"ground\"]', '2026-10-01T00:00:00Z', 'ground', '{\"x\":3}', 2)\0";
+    assert(sqlite3_exec(db, ins.ptr, null, null, null) == SQLITE_OK);
+
+    __gshared Batch b;
+    rowsBatch(db, b, 0, 16, 64 * 1024);
+    assert(b.rows == 3, "only rows set aside, and no transcript line");
+    assert(b.starts[0] == 1 && b.starts[1] == 4 && b.starts[2] == 5, "in rowid order");
+    assert(b.end == 5, "sent up to the last row taken");
+    assert(contains(b.slice(), `"id":"a"`) && contains(b.slice(), `"id":"d"`) && contains(b.slice(), `"id":"e"`));
+    assert(!contains(b.slice(), `"id":"b"`) && !contains(b.slice(), `"id":"c"`));
+    assert(contains(b.slice(), `"command":"ls"`), "a tool row goes as the stream gives it");
+    assert(!contains(b.slice(), "SECRET-OUTPUT"), "and its output stays home");
+    assert(b.slice()[0] == '[' && b.slice()[$ - 1] == ']');
+
+    rowsBatch(db, b, 4, 16, 64 * 1024);
+    assert(b.rows == 1 && b.starts[0] == 5, "from where they were last sent");
+    rowsBatch(db, b, 0, 2, 64 * 1024);
+    assert(b.rows == 2 && b.end == 4, "no more rows than asked");
+    rowsBatch(db, b, 5, 16, 64 * 1024);
+    assert(b.rows == 0, "nothing after the last");
+    assert(STORE_KEY.length > 0);
+    sqlite3_close(db);
+}
