@@ -106,9 +106,6 @@ void attestTypes() {
 // TODO: extract and attest `model` field — track which model worked on what
 // TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
 // TODO: use `source` field — "startup", "resume", "clear", "compact" — fire different controls per source
-// TODO (CC .152): set hookSpecificOutput.sessionTitle so terminal chrome shows
-//   e.g. "teranos/ground [main]" instead of the default. cwdTail + branch already
-//   available here — one extra JSON emit on startup/resume.
 // TODO (CC .152): reloadSkills: true on SessionStart when a control has just
 //   installed skills into the skills dir — makes them usable in the same session.
 int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] sessionId,
@@ -199,6 +196,10 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
     __gshared ZBuf ctx;
     ctx.reset();
     bool any = false;
+    // "but you would think, it should be Cumulus, no ?"
+    // The name laye holds for this session, as Claude Code is to call it.
+    __gshared ZBuf title;
+    title.reset();
 
     if (isStartup) {
         ctx.put("arch: " ~ ARCH);
@@ -452,6 +453,7 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
             foreach (c; keptGiver(keyAt, giverBuf[])) if (giverLen < giverKept.length) giverKept[giverLen++] = c;
             const(char)[] giver = giverKept[0 .. giverLen];
             if (kept !is null && goesOn) {
+                title.put(kept);
                 ctx.put("You are ");
                 inJson(kept);
                 if (givenAs(giver).length > 0) { ctx.put(", "); ctx.put(givenAs(giver)); }
@@ -471,6 +473,7 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
                     named.why.put("Claude Code gave it none");
                 } else got = nameSession(here.sandUrl, keyAt, wanted, giver, named);
                 if (got == 1) {
+                    title.put(named.name.slice());
                     ctx.put("You are ");
                     inJson(named.name.slice());
                     if (givenAs(giver).length > 0) { ctx.put(", "); ctx.put(givenAs(giver)); }
@@ -532,6 +535,10 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         writeJsonString(startLine.slice());
         fputs(`","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
         fwrite(&ctx.data[0], 1, ctx.len, stdout);
+        if (title.len > 0) {
+            fputs(`","sessionTitle":"`, stdout);
+            writeJsonString(title.slice());
+        }
         fputs(`"}}` ~ "\n", stdout);
         emitSessionProfile();
         return 0;
