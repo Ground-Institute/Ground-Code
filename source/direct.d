@@ -283,7 +283,10 @@ private long sendBatch(const(char)[] primary, const(char)[] node, ref Batch b, r
     endpoint.put(node);
     endpoint.put("/api/attestations");
     __gshared char[1024 * 1024] reply = 0;
-    auto posted = httpPostAs(endpoint.slice(), b.slice(), authorization, reply[], 30);
+    // k stalls for half a minute and more on its own, and finishes what it was
+    // sent all the same: a batch given up on at 30s was work done twice
+    // (2026-11-21). The signature lasts a minute to be presented, not to be answered.
+    auto posted = httpPostAs(endpoint.slice(), b.slice(), authorization, reply[], 120);
     if (posted.status == 0) { s.ok = false; s.halt = true; s.unreachable = true; s.say("the node did not answer"); return -1; }
     if (posted.status != 200 || posted.overran) {
         s.ok = false;
