@@ -41,8 +41,14 @@ enum TRICKLE_ROWS = 16;
 enum TRICKLE_BYTES = 64 * 1024;
 enum BUSY_US = 2_000_000;
 
-bool nodeBusy(long tookUs) {
-    return tookUs > BUSY_US;
+// At night k took 2.3 s over 256 rows, 9 ms a row, and each such batch rested
+// the stream ten minutes (2026-11-21T23:19Z..00:01Z). Busy is sixteen rows
+// slower than BUSY_US, or any batch slower than BUSY_MOST_US.
+enum BUSY_MOST_US = 10_000_000;
+
+bool nodeBusy(long tookUs, long rows) {
+    if (tookUs > BUSY_MOST_US) return true;
+    return rows <= TRICKLE_ROWS && tookUs > BUSY_US;
 }
 
 // "considering there will be stretches where k wont be ringing the bell, as in,
@@ -58,8 +64,14 @@ struct Pace {
 }
 
 void paceAfter(ref Pace p, long tookUs) {
-    if (nodeBusy(tookUs)) {
+    if (nodeBusy(tookUs, p.rows)) {
         p = Pace.init;
+        return;
+    }
+    if (tookUs > BUSY_US) {
+        // Slow over a large batch: the next is half of it.
+        p.rows = p.rows / 2 < TRICKLE_ROWS ? TRICKLE_ROWS : p.rows / 2;
+        p.bytes = p.bytes / 2 < TRICKLE_BYTES ? TRICKLE_BYTES : p.bytes / 2;
         return;
     }
     if (tookUs >= FAST_US) return;
@@ -491,7 +503,7 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
         if (took > s.slowestUs) s.slowestUs = took;
         paceAfter(s.pace, took);
         // The batch landed, and the node was slow over it: it is left alone.
-        if (nodeBusy(took)) {
+        if (nodeBusy(took, b.rows)) {
             s.halt = true;
             s.busy = true;
             if (s.whyLen == 0) s.say("the node was slow over a batch, and is left alone");
@@ -537,7 +549,7 @@ private void sendRows(const(char)[] primary, const(char)[] node, sqlite3* db,
         if (b.rows > s.mostRows) s.mostRows = b.rows;
         if (took > s.slowestUs) s.slowestUs = took;
         paceAfter(s.pace, took);
-        if (nodeBusy(took)) {
+        if (nodeBusy(took, b.rows)) {
             s.halt = true;
             s.busy = true;
             if (s.whyLen == 0) s.say("the node was slow over a batch, and is left alone");

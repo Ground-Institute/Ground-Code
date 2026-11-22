@@ -130,8 +130,8 @@ unittest {
     import direct : nodeBusy, TRICKLE_ROWS, TRICKLE_BYTES;
     assert(TRICKLE_ROWS == 16);
     assert(TRICKLE_BYTES == 64 * 1024);
-    assert(!nodeBusy(1_999_999));
-    assert(nodeBusy(2_000_001), "slower than two seconds over sixteen lines is a node to leave alone");
+    assert(!nodeBusy(1_999_999, TRICKLE_ROWS));
+    assert(nodeBusy(2_000_001, TRICKLE_ROWS), "slower than two seconds over sixteen lines is a node to leave alone");
 }
 
 // "considering there will be stretches where k wont be ringing the bell, as in,
@@ -149,7 +149,7 @@ unittest {
     assert(p.rows == BATCH_ROWS && p.bytes == BATCH_BYTES, "and never past a batch");
     paceAfter(p, FAST_US + 1);
     assert(p.rows == BATCH_ROWS, "an answer neither fast nor slow keeps the size");
-    paceAfter(p, 2_000_001);
+    paceAfter(p, 10_000_001);
     assert(p.rows == TRICKLE_ROWS && p.bytes == TRICKLE_BYTES, "a slow answer goes back to the trickle");
 }
 
@@ -192,4 +192,23 @@ unittest {
     assert(b.rows == 0, "nothing after the last");
     assert(STORE_KEY.length > 0);
     sqlite3_close(db);
+}
+
+// At night k took 2.3 s over 256 rows, 9 ms a row, and each such batch rested
+// the stream ten minutes (2026-11-21T23:19Z..00:01Z). A large batch slower than
+// two seconds halves the next; only sixteen rows slower than two seconds, or
+// any batch slower than ten, is a node to leave alone.
+unittest {
+    import direct : Pace, paceAfter, nodeBusy, TRICKLE_ROWS, TRICKLE_BYTES, BATCH_ROWS, BATCH_BYTES;
+    assert(!nodeBusy(2_400_000, 256), "256 rows in 2.4 s is a node keeping up");
+    assert(nodeBusy(2_400_000, TRICKLE_ROWS), "sixteen rows in 2.4 s is not");
+    assert(nodeBusy(10_000_001, 256), "nor is any batch past ten seconds");
+
+    Pace p;
+    p.rows = BATCH_ROWS;
+    p.bytes = BATCH_BYTES;
+    paceAfter(p, 2_400_000);
+    assert(p.rows == BATCH_ROWS / 2 && p.bytes == BATCH_BYTES / 2, "a slow large batch halves the next");
+    foreach (i; 0 .. 10) paceAfter(p, 2_400_000);
+    assert(p.rows == TRICKLE_ROWS && p.bytes == TRICKLE_BYTES, "and never below the trickle");
 }
