@@ -628,21 +628,94 @@ Sent sendDirect(const(char)[] primary, const(char)[] node, const(char)[] root, i
     return s;
 }
 
-// A sky's pass of it: only one sky sends at a time, and only where the ground
-// installed here names a node of its own (nodes.pbt) beside the one its
-// controls stream to. Nothing is said of a far end that is not there.
+// "this means this should not be pbt authored, humans have no business in owning this part"
+// The node a sky sends to directly is the one `ground keep send` last sent to,
+// kept beside the store as direct-node. None kept, none sent to.
+const(char)[] directNodeOf(const(char)[] content) {
+    size_t a = 0, e = content.length;
+    while (a < e && (content[a] == ' ' || content[a] == '\n' || content[a] == '\t' || content[a] == '\r')) a++;
+    while (e > a && (content[e - 1] == ' ' || content[e - 1] == '\n' || content[e - 1] == '\t' || content[e - 1] == '\r')) e--;
+    auto t = content[a .. e];
+    bool http = (t.length > 7 && t[0 .. 7] == "http://") || (t.length > 8 && t[0 .. 8] == "https://");
+    return http ? t : "";
+}
+
+// When a node that was slow or away may be sent to again, kept as direct-rest.
+long restOf(const(char)[] content) {
+    long v = 0;
+    size_t n = 0;
+    foreach (c; content) {
+        if (c == '\n') break;
+        if (c < '0' || c > '9') return 0;
+        v = v * 10 + (c - '0');
+        n++;
+    }
+    return n == 0 ? 0 : v;
+}
+
+enum DIRECT_REST = 600;
+
+private const(char)* besideStore(const(char)[] name) {
+    import db : storeDir;
+    __gshared ZBuf path;
+    path.reset();
+    auto dir = storeDir();
+    if (dir is null) return null;
+    path.put(dir);
+    path.put("/");
+    path.put(name);
+    return path.ptr();
+}
+
+private const(char)[] readSmall(const(char)[] name, char[] into) {
+    import core.stdc.stdio : fopen, fread, fclose;
+    auto at = besideStore(name);
+    if (at is null) return "";
+    auto f = fopen(at, "r");
+    if (f is null) return "";
+    auto n = fread(into.ptr, 1, into.length, f);
+    fclose(f);
+    return into[0 .. n];
+}
+
+private void writeSmall(const(char)[] name, const(char)[] text) {
+    import core.stdc.stdio : fopen, fwrite, fclose;
+    auto at = besideStore(name);
+    if (at is null) return;
+    auto f = fopen(at, "w");
+    if (f is null) return;
+    fwrite(text.ptr, 1, text.length, f);
+    fclose(f);
+}
+
+// What `ground keep send <node>` remembers for the skies.
+void rememberDirectNode(const(char)[] node) {
+    writeSmall("direct-node", node);
+}
+
+// The node is left alone for DIRECT_REST seconds from now.
+void restDirect(long now) {
+    char[24] d = 0;
+    import core.stdc.stdio : snprintf;
+    auto n = snprintf(d.ptr, d.length, "%lld\n", now + DIRECT_REST);
+    if (n > 0) writeSmall("direct-rest", d[0 .. n]);
+}
+
+// A sky's pass of it: only one sky sends at a time, only to the node
+// `ground keep send` last sent to, and not while that node is left alone.
+// Nothing is said of a far end that is not there.
 void directPass(const(char)[] streamUrl, const(char)[] sessionId) {
-    import nodeconfig : NodeConfig, loadNodes;
     import transcript : projectsRoot;
     import core.sys.posix.fcntl : open, O_CREAT, O_RDWR;
+    import core.stdc.time : time;
     import core.sys.posix.unistd : close;
 
     if (streamUrl.length == 0) return;
-    __gshared NodeConfig c;
-    loadNodes(c);
-    if (c.why().length > 0 || c.count != 1) return;
-    auto node = c.nodes[0].url;
+    __gshared char[512] nodeBuf = 0;
+    __gshared char[32] restBuf = 0;
+    auto node = directNodeOf(readSmall("direct-node", nodeBuf[]));
     if (node.length == 0 || node == streamUrl) return;
+    if (restOf(readSmall("direct-rest", restBuf[])) > cast(long) time(null)) return;
     auto root = projectsRoot();
     if (root.length == 0) return;
 
@@ -654,6 +727,7 @@ void directPass(const(char)[] streamUrl, const(char)[] sessionId) {
     if (flock(fd, LOCK_EX | LOCK_NB) != 0) return;
 
     auto s = sendDirect(streamUrl, node, root, DIRECT_SECONDS);
+    if (s.busy || s.halt) restDirect(cast(long) time(null));
     if (!s.ok && !s.unreachable) {
         import errors : sayQuietly;
         sayQuietly("direct.send", "kept lines were not sent to the node directly", -1,

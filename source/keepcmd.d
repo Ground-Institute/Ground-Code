@@ -26,7 +26,11 @@ int handleKeepSend(const(char)[] node) {
     if (here.url.length == 0) { fputs("ground keep send: this ground streams to no node, so nobody signs\n", stderr); return 1; }
     auto root = projectsRoot();
     if (root.length == 0) { fputs("ground keep send: no HOME, so no ~/.claude/projects\n", stderr); return 1; }
+    import direct : rememberDirectNode, restDirect;
+    import core.stdc.time : time;
+    rememberDirectNode(node);
     auto s = sendDirect(here.url, node, root, 60);
+    if (s.busy || s.halt) restDirect(cast(long) time(null));
     fprintf(stdout, "ground keep send: %lld lines of %lld files sent to %.*s, %lld files stopped at a line it refused\n",
             s.rows, s.files, cast(int) node.length, node.ptr, s.stuck);
     fprintf(stdout, "ground keep send: largest batch %lld lines, slowest answer %lld ms\n",

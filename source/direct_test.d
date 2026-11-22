@@ -212,3 +212,26 @@ unittest {
     foreach (i; 0 .. 10) paceAfter(p, 2_400_000);
     assert(p.rows == TRICKLE_ROWS && p.bytes == TRICKLE_BYTES, "and never below the trickle");
 }
+
+// "this means this should not be pbt authored, humans have no business in owning this part"
+// The node a sky sends to directly is the one `ground keep send` last sent to,
+// kept beside the store; with none kept, a sky sends nothing directly.
+unittest {
+    import direct : directNodeOf;
+    assert(directNodeOf("") == "", "none kept, none sent to");
+    assert(directNodeOf("http://k.tail.sbvh.nl:8770\n") == "http://k.tail.sbvh.nl:8770");
+    assert(directNodeOf("http://k.tail.sbvh.nl:8770") == "http://k.tail.sbvh.nl:8770");
+    assert(directNodeOf("  \n") == "", "blank is none");
+    assert(directNodeOf("kapteyn:8770\n") == "", "only an http node");
+}
+
+// A sky passes every half minute. A node that was slow or away is left alone
+// for DIRECT_REST seconds, kept beside the store, as the stream left k ten
+// minutes (2026-11-21).
+unittest {
+    import direct : restOf, DIRECT_REST;
+    assert(restOf("") == 0);
+    assert(restOf("1795300000\n") == 1795300000);
+    assert(restOf("soon") == 0);
+    assert(DIRECT_REST == 600);
+}
