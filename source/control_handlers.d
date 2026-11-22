@@ -746,6 +746,143 @@ CheckResult prNotRequested(const(char)[] cwd, const(char)[] input) {
         userRecentlySaid("pr", 8) || operatorWentAhead(GO_AHEAD_WINDOW), null);
 }
 
+// "i agree, those should be excempt, anything -stack"
+// A branch whose name ends in -stack is one a node deploys from.
+bool stackBranch(const(char)[] head) {
+    enum S = "-stack";
+    return head.length >= S.length && head[$ - S.length .. $] == S;
+}
+
+unittest {
+    assert(stackBranch("c-stack"));
+    assert(stackBranch("devkq-stack"));
+    assert(!stackBranch("stack"));
+    assert(!stackBranch("plugin-follows-merge"));
+    assert(!stackBranch("c-stack-next"));
+}
+
+// A word of a command as the shell reads it: one run of characters, a quoted
+// stretch kept whole and without its quotes.
+private const(char)[] nextWord(const(char)[] s, ref size_t i, ref char[512] word) {
+    while (i < s.length && (s[i] == ' ' || s[i] == '\t')) i++;
+    if (i >= s.length) return null;
+    size_t n = 0;
+    while (i < s.length && s[i] != ' ' && s[i] != '\t') {
+        if (s[i] == '"' || s[i] == '\'') {
+            auto q = s[i++];
+            while (i < s.length && s[i] != q) { if (n < word.length) word[n++] = s[i]; i++; }
+            if (i < s.length) i++;
+        } else {
+            if (n < word.length) word[n++] = s[i];
+            i++;
+        }
+    }
+    return word[0 .. n];
+}
+
+// Whether a word may stand in a command ground runs itself: a number, a
+// branch, a URL or a repository, and nothing the shell would act on.
+private bool plainWord(const(char)[] w) {
+    if (w.length == 0) return false;
+    foreach (c; w) {
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+            || c == '/' || c == '.' || c == '_' || c == '-' || c == ':' || c == '#';
+        if (!ok) return false;
+    }
+    return true;
+}
+
+// The `gh pr view` that finds the pull request a merge segment merges: the
+// same number, branch or URL, or none for the branch checked out, and the
+// same -R. (The long form of -R never reaches here: no-gh-pr-merge-with-repo
+// denies it first.) False when the segment names it in a way ground will not
+// put in a command of its own.
+bool viewOfMerge(const(char)[] segment, ref ZBuf view) {
+    enum PREFIX = "gh pr merge";
+    if (segment.length < PREFIX.length || segment[0 .. PREFIX.length] != PREFIX) return false;
+    // The flags of a merge that take a value after them.
+    static immutable string[10] VALUED = [
+        "-R", "-b", "--body", "-F", "--body-file", "-t", "--subject",
+        "--match-head-commit", "-A", "--author-email",
+    ];
+    __gshared char[512] word = 0;
+    __gshared char[256] pr = 0;
+    __gshared char[256] repo = 0;
+    size_t prLen = 0, repoLen = 0;
+    bool hasPr = false, hasRepo = false;
+    size_t i = PREFIX.length;
+    for (;;) {
+        auto w = nextWord(segment, i, word);
+        if (w is null) break;
+        bool valued = false;
+        foreach (v; VALUED) if (w == v) { valued = true; break; }
+        if (valued) {
+            bool isRepo = w == "-R";
+            auto value = nextWord(segment, i, word);
+            if (value is null) return false;
+            if (isRepo) {
+                if (!plainWord(value) || value.length > repo.length) return false;
+                repo[0 .. value.length] = value[];
+                repoLen = value.length;
+                hasRepo = true;
+            }
+            continue;
+        }
+        if (w[0] == '-') continue;
+        if (hasPr) return false;
+        if (!plainWord(w) || w.length > pr.length) return false;
+        pr[0 .. w.length] = w[];
+        prLen = w.length;
+        hasPr = true;
+    }
+    view.reset();
+    view.put("gh pr view");
+    if (hasPr) { view.putChar(' '); view.put(pr[0 .. prLen]); }
+    if (hasRepo) { view.put(" -R "); view.put(repo[0 .. repoLen]); }
+    view.put(" --json headRefName -q .headRefName");
+    return true;
+}
+
+unittest {
+    ZBuf v;
+    assert(viewOfMerge("gh pr merge 27 -R Ground-Institute/laye --merge", v));
+    assert(v.slice() == "gh pr view 27 -R Ground-Institute/laye --json headRefName -q .headRefName");
+    assert(viewOfMerge("gh pr merge --squash", v));
+    assert(v.slice() == "gh pr view --json headRefName -q .headRefName");
+    assert(viewOfMerge(`gh pr merge 12 --merge --subject "a b; rm" -R teranos/QNTX`, v));
+    assert(v.slice() == "gh pr view 12 -R teranos/QNTX --json headRefName -q .headRefName");
+    assert(!viewOfMerge("gh pr merge 12 -R 'x;y'", v), "a word the shell would act on is not run");
+    assert(!viewOfMerge("gh pr list", v));
+}
+
+// Whether the pull request a merge merges comes from a branch that is not a
+// node's -stack: only then does its merge delete the branch. When gh cannot
+// say which branch it is, the branch is left standing.
+CheckResult headIsNotStack(const(char)[] cwd, const(char)[] input) {
+    import db : popen, pclose;
+    import core.stdc.stdio : fread;
+
+    __gshared ZBuf view;
+    if (!viewOfMerge(input, view)) return passes();
+    __gshared ZBuf cmd;
+    cmd.reset();
+    cmd.put("cd \"");
+    cmd.put(cwd);
+    cmd.put("\" && ");
+    cmd.put(view.slice());
+    cmd.put(" 2>/dev/null");
+    cmd.putChar('\0');
+
+    auto pipe = popen(cmd.ptr(), "r");
+    if (pipe is null) return passes();
+    __gshared char[512] head = 0;
+    auto n = fread(&head[0], 1, head.length, pipe);
+    if (pclose(pipe) != 0) return passes();
+    while (n > 0 && (head[n - 1] == '\n' || head[n - 1] == '\r')) n--;
+    if (n == 0) return passes();
+    return stackBranch(head[0 .. n]) ? passes() : fires();
+}
+
 // "i want to block automatic branch creation by you"
 
 // Same shape as killNotRequested: the word has to be in one of the last few

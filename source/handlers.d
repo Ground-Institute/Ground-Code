@@ -15,6 +15,7 @@ CheckFn resolveCheck(const(char)[] name) {
         case "killNotRequested": return &control_handlers.killNotRequested;
         case "branchNotRequested": return &control_handlers.branchNotRequested;
         case "prNotRequested": return &control_handlers.prNotRequested;
+        case "headIsNotStack": return &control_handlers.headIsNotStack;
         case "quoteProvenance": return &control_handlers.quoteProvenance;
         case "quoteStandsAlone": return &control_handlers.quoteStandsAlone;
         case "quoteChronology": return &control_handlers.quoteChronology;
