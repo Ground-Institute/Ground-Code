@@ -7,7 +7,7 @@ static immutable string[] checkNames = [
     "binaryShadowed", "commitNotRequested", "mergeNotRequested", "killNotRequested",
     "branchNotRequested", "prNotRequested", "quoteProvenance", "quoteStandsAlone",
     "quoteChronology", "strikethrough", "unanalyzableBash", "deepAndChain",
-    "stagedNamesPerson", "pushNamesPerson",
+    "stagedNamesPerson", "pushNamesPerson", "headIsNotStack",
 ];
 
 // No delay handler is named by any control today.
