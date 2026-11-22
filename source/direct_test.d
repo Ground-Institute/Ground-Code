@@ -142,7 +142,11 @@ unittest {
 unittest {
     import direct : Pace, paceAfter, TRICKLE_ROWS, TRICKLE_BYTES, BATCH_ROWS, BATCH_BYTES, FAST_US;
     Pace p;
-    assert(p.rows == TRICKLE_ROWS && p.bytes == TRICKLE_BYTES, "a pass starts at the trickle");
+    // k writes a batch at once: 16 rows came in at 8-43 rows/s, 256 at 59-710
+    // (Cumulus, from k's put= times, 2026-11-22). A pass starts at a full batch.
+    assert(p.rows == BATCH_ROWS && p.bytes == BATCH_BYTES, "a pass starts at a full batch");
+    p.rows = TRICKLE_ROWS;
+    p.bytes = TRICKLE_BYTES;
     paceAfter(p, FAST_US - 1);
     assert(p.rows == 2 * TRICKLE_ROWS && p.bytes == 2 * TRICKLE_BYTES, "a fast answer doubles the next batch");
     foreach (i; 0 .. 10) paceAfter(p, 1000);

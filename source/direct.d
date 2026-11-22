@@ -53,19 +53,22 @@ bool nodeBusy(long tookUs, long rows) {
 
 // "considering there will be stretches where k wont be ringing the bell, as in,
 // no deploys during the night"
-// A pass starts at the trickle. A batch the node answers in under FAST_US is
+// A pass starts at a full batch (Pace). A batch the node answers in under FAST_US is
 // followed by one twice its size, up to BATCH_ROWS and BATCH_BYTES; a batch it
 // is busy over brings the next back to the trickle.
 enum FAST_US = 500_000;
 
+// k writes a batch at once: 16 rows came in at 8-43 rows/s, 256 at 59-710
+// (k's put= times, 2026-11-22). A pass starts at a full batch.
 struct Pace {
-    long rows = TRICKLE_ROWS;
-    size_t bytes = TRICKLE_BYTES;
+    long rows = BATCH_ROWS;
+    size_t bytes = BATCH_BYTES;
 }
 
 void paceAfter(ref Pace p, long tookUs) {
     if (nodeBusy(tookUs, p.rows)) {
-        p = Pace.init;
+        p.rows = TRICKLE_ROWS;
+        p.bytes = TRICKLE_BYTES;
         return;
     }
     if (tookUs > BUSY_US) {
@@ -359,6 +362,8 @@ struct Sent {
     long rows;
     long mostRows;    // the largest batch that landed
     long slowestUs;   // the longest the node took over a batch
+    long slowestSignUs; // the longest the primary took to sign for one
+    long slowestPostUs; // the longest the node took to answer the post of one
     Pace pace;        // the size of the next batch
     long files;
     char[400] whyBuf = 0;
@@ -374,7 +379,13 @@ private long sendBatch(const(char)[] primary, const(char)[] node, ref Batch b, r
     import stream : nextAnswer, Answer;
 
     __gshared char[8192] signedReply = 0;
+    import hookrun : usecNow;
+    auto signAsked = usecNow();
     auto asked = httpPostInto(primary, "", ToNode(), signedReply[], 10);
+    {
+        auto took = usecNow() - signAsked;
+        if (took > s.slowestSignUs) s.slowestSignUs = took;
+    }
     if (asked.status == 0) { s.ok = false; s.halt = true; s.unreachable = true; s.say("the primary did not answer"); return -1; }
     auto authorization = authorizationOf(signedReply[0 .. asked.len]);
     if (asked.status != 200 || authorization.length == 0) {
@@ -393,7 +404,12 @@ private long sendBatch(const(char)[] primary, const(char)[] node, ref Batch b, r
     // k stalls for half a minute and more on its own, and finishes what it was
     // sent all the same: a batch given up on at 30s was work done twice
     // (2026-11-21). The signature lasts a minute to be presented, not to be answered.
+    auto postAsked = usecNow();
     auto posted = httpPostAs(endpoint.slice(), b.slice(), authorization, reply[], 120);
+    {
+        auto took = usecNow() - postAsked;
+        if (took > s.slowestPostUs) s.slowestPostUs = took;
+    }
     if (posted.status == 0) { s.ok = false; s.halt = true; s.unreachable = true; s.say("the node did not answer"); return -1; }
     if (posted.status != 200 || posted.overran) {
         s.ok = false;

@@ -33,8 +33,8 @@ int handleKeepSend(const(char)[] node) {
     if (s.busy || s.halt) restDirect(cast(long) time(null));
     fprintf(stdout, "ground keep send: %lld lines of %lld files sent to %.*s, %lld files stopped at a line it refused\n",
             s.rows, s.files, cast(int) node.length, node.ptr, s.stuck);
-    fprintf(stdout, "ground keep send: largest batch %lld lines, slowest answer %lld ms\n",
-            s.mostRows, s.slowestUs / 1000);
+    fprintf(stdout, "ground keep send: largest batch %lld lines, slowest answer %lld ms (signing %lld ms, the node %lld ms)\n",
+            s.mostRows, s.slowestUs / 1000, s.slowestSignUs / 1000, s.slowestPostUs / 1000);
     if (s.busy) {
         fputs("ground keep send: busy: the node was slow over a batch, and is left alone\n", stderr);
         return 2;
