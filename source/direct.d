@@ -82,6 +82,14 @@ void paceAfter(ref Pace p, long tookUs) {
     p.bytes = p.bytes * 2 > BATCH_BYTES ? BATCH_BYTES : p.bytes * 2;
 }
 
+// "keep sending without resting on slow batches, since a slow batch still lands"
+// (Cumulus, from k's log, 2026-11-22, after k's store moved to its own disk).
+// A slow batch makes the next one small (paceAfter); only a batch that did not
+// land ends the pass, and that rests the node.
+bool endsPass(bool landed, long tookUs, long rows) {
+    return !landed;
+}
+
 // How long to wait after a batch the node took `tookUs` to answer, in microseconds.
 long waitAfter(long tookUs) {
     auto w = tookUs * 2;
@@ -519,12 +527,7 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
         if (took > s.slowestUs) s.slowestUs = took;
         paceAfter(s.pace, took);
         // The batch landed, and the node was slow over it: it is left alone.
-        if (nodeBusy(took, b.rows)) {
-            s.halt = true;
-            s.busy = true;
-            if (s.whyLen == 0) s.say("the node was slow over a batch, and is left alone");
-            break;
-        }
+        if (endsPass(true, took, b.rows)) break;
     }
     if (any) s.files++;
 }
@@ -565,12 +568,7 @@ private void sendRows(const(char)[] primary, const(char)[] node, sqlite3* db,
         if (b.rows > s.mostRows) s.mostRows = b.rows;
         if (took > s.slowestUs) s.slowestUs = took;
         paceAfter(s.pace, took);
-        if (nodeBusy(took, b.rows)) {
-            s.halt = true;
-            s.busy = true;
-            if (s.whyLen == 0) s.say("the node was slow over a batch, and is left alone");
-            break;
-        }
+        if (endsPass(true, took, b.rows)) break;
     }
     if (any) s.files++;
 }

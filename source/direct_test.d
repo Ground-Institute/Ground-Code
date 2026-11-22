@@ -239,3 +239,14 @@ unittest {
     assert(restOf("soon") == 0);
     assert(DIRECT_REST == 600);
 }
+
+// "keep sending without resting on slow batches, since a slow batch still lands"
+// (Cumulus, from k's log, 2026-11-22, after k's store moved to its own disk).
+// A slow batch makes the next one small; only a batch that did not land ends
+// the pass and rests the node.
+unittest {
+    import direct : endsPass;
+    assert(!endsPass(true, 30_000_000, 16), "a slow batch that landed goes on");
+    assert(!endsPass(true, 11_000_000, 256));
+    assert(endsPass(false, 0, 256), "a batch that did not land ends the pass");
+}
