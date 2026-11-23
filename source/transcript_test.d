@@ -291,6 +291,7 @@ unittest {
 import transcript : keepAll;
 
 unittest {
+    // book: transcript-keepAll
     // "i dont want to come back, and find out i missed something"
     // Every transcript under a root, main and subagent, read to its end: what
     // was written before ground kept lines, and after a session's last hook.

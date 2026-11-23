@@ -95,6 +95,11 @@ ground mcp tools/call '{"name":"echo","arguments":{"text":"hello"}}' -- /path/to
 # a text with fixtures in place of what names a person, what was found on stderr:
 ground scrub < text
 
+# every transcript's lines kept, and each file checked against what was kept:
+ground keep
+# what is kept sent to a node reached directly, the primary signing and carrying none of it:
+ground keep send http://k.tail.sbvh.nl:8770
+
 # strip the bulk out of the db (make install does):
 ground decay
 
