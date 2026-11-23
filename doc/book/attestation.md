@@ -43,5 +43,8 @@ The node's limit: a row that would take the list past it waits for the next pass
 ## transcript-keepAll
 Every transcript under the projects root, a session's and its subagents', is read to its end and each line kept once: what was written before ground kept lines, and what came after a session's last hook.
 
+## transcript-sessionOfPath
+A transcript line belongs to the session its file is named for: Claude Code's `<session>.jsonl`, a subagent's under the session that started it, and Codex's `rollout-<when>-<session>.jsonl`.
+
 ## naming-1
 A session has a key of its own, admitted by the key the person said yes to, and takes its name at the node by it. The name is kept beside the key with the node that gave it and who gave it, and is the one asked for again; a name another agent holds is said to the session, which asks for another.

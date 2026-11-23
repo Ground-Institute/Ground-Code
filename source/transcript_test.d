@@ -282,6 +282,7 @@ unittest {
 import transcript : sessionOfPath;
 
 unittest {
+    // book: transcript-sessionOfPath
     assert(sessionOfPath("/h/.claude/projects/-x/c21677df-3b62-45ca-848b-27c489e877a0.jsonl")
         == "c21677df-3b62-45ca-848b-27c489e877a0");
     assert(sessionOfPath("/h/.claude/projects/-x/c21677df-3b62-45ca-848b-27c489e877a0/subagents/agent-a5b2.jsonl")
