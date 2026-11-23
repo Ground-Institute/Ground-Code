@@ -60,6 +60,10 @@ FileAnswer fileAnswer(bool granted, bool controlsSpoke, const(char)[] controlDec
 // Whether codex is the harness asking: its answers take codex's shape.
 __gshared bool codexAsks;
 
+// The call's own tool_input, as written: a Bash answer's updatedInput keeps
+// every member of it but the command (bashResponse).
+__gshared const(char)[] callInput;
+
 // What the file controls said of a file the Bash call writes, short of a
 // deny: carried on whatever the call is answered with.
 __gshared const(char)[] shellWriteSaid;
@@ -271,8 +275,13 @@ void writeDenyResponse(const(char)[] reason) {
 // The Bash answer, built into a buffer the caller owns so a test can read it.
 // An empty decision is no decision, and the key is left out: the empty string
 // is not allow, deny or ask, and Claude Code discards the whole answer over it.
+//
+// updatedInput replaces the whole tool_input: `input` is the call's own, and
+// every member of it but the command goes along as it was, so the call keeps its
+// timeout, background, description and sandbox. What a control asked for wins.
 const(char)[] bashResponse(char[] dest, const(char)[] command, const(char)[] context,
-                           const(char)[] decision, bool background, int timeout, bool codex = false) {
+                           const(char)[] decision, bool background, int timeout, bool codex = false,
+                           const(char)[] input = null) {
     size_t n;
     void put(const(char)[] s) { foreach (c; s) if (n < dest.length) dest[n++] = c; }
 
@@ -286,6 +295,13 @@ const(char)[] bashResponse(char[] dest, const(char)[] command, const(char)[] con
     put(`,"updatedInput":{"command":"`);
     putJsonString(dest, n, command);
     put(`"`);
+    foreach (m; MembersOf(input)) {
+        if (m.key == `"command"`) continue;
+        if (background && m.key == `"run_in_background"`) continue;
+        if (timeout > 0 && m.key == `"timeout"`) continue;
+        put(",");
+        put(m.whole);
+    }
     if (background) put(`,"run_in_background":true`);
     if (timeout > 0) {
         put(`,"timeout":`);
@@ -310,6 +326,72 @@ const(char)[] bashResponse(char[] dest, const(char)[] command, const(char)[] con
     return dest[0 .. n];
 }
 
+// One member of a JSON object's text: its quoted key, and the member whole,
+// `"key":value`, as written.
+struct Member {
+    const(char)[] key;
+    const(char)[] whole;
+}
+
+// The top-level members of a JSON object's text, in order, each as written.
+// No object, or one that does not read, is no members.
+struct MembersOf {
+    const(char)[] text;
+
+    int opApply(scope int delegate(Member) dg) {
+        size_t p = 0;
+        bool ws(char c) { return c == ' ' || c == '\n' || c == '\t' || c == '\r'; }
+        void skipWs() { while (p < text.length && ws(text[p])) p++; }
+        // A string from its opening quote to past its closing one; false when it does not close.
+        bool skipString() {
+            p++;
+            while (p < text.length) {
+                if (text[p] == '\\') { p += 2; continue; }
+                if (text[p] == '"') { p++; return true; }
+                p++;
+            }
+            return false;
+        }
+        bool skipValue() {
+            if (p >= text.length) return false;
+            if (text[p] == '"') return skipString();
+            if (text[p] == '{' || text[p] == '[') {
+                size_t depth = 0;
+                while (p < text.length) {
+                    auto c = text[p];
+                    if (c == '"') { if (!skipString()) return false; continue; }
+                    if (c == '{' || c == '[') depth++;
+                    else if (c == '}' || c == ']') { depth--; if (depth == 0) { p++; return true; } }
+                    p++;
+                }
+                return false;
+            }
+            while (p < text.length && text[p] != ',' && text[p] != '}' && !ws(text[p])) p++;
+            return true;
+        }
+
+        skipWs();
+        if (p >= text.length || text[p] != '{') return 0;
+        p++;
+        while (true) {
+            skipWs();
+            if (p >= text.length || text[p] != '"') return 0;
+            auto start = p;
+            if (!skipString()) return 0;
+            auto key = text[start .. p];
+            skipWs();
+            if (p >= text.length || text[p] != ':') return 0;
+            p++;
+            skipWs();
+            if (!skipValue()) return 0;
+            if (auto r = dg(Member(key, text[start .. p]))) return r;
+            skipWs();
+            if (p < text.length && text[p] == ',') { p++; continue; }
+            return 0;
+        }
+    }
+}
+
 void writeResponse(const(char)[] command, const(char)[] context, const(char)[] decision,
     bool background = false, int timeout = 0)
 {
@@ -323,7 +405,7 @@ void writeResponse(const(char)[] command, const(char)[] context, const(char)[] d
         if (context.length > 0) { said.put(" | "); said.put(context); }
         context = said.slice();
     }
-    auto r = bashResponse(out_[], command, context, decision, background, timeout, codexAsks);
+    auto r = bashResponse(out_[], command, context, decision, background, timeout, codexAsks, callInput);
     fwrite(r.ptr, 1, r.length, stdout);
     fputs("\n", stdout);
 }
@@ -713,8 +795,9 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
     }
 
     auto toolName = extractToolName(input);
-    import parse : fromCodex;
+    import parse : fromCodex, extractToolInputRegion;
     codexAsks = fromCodex(input);
+    callInput = extractToolInputRegion(input);
     // Its patch names the files it edits in its text, and no file_path. A
     // model that runs apply_patch through the shell sends it as Bash.
     import applypatch : shellPatch;
