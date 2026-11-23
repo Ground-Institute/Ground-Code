@@ -1,7 +1,7 @@
 module keepcmd;
 
 // ground keep: every line of every transcript under ~/.claude/projects, main and
-// subagent, kept as an attestation for the sky to stream to the node; then what
+// subagent, and under ~/.codex/sessions, kept as an attestation for the sky to stream to the node; then what
 // was kept, file by file against its bytes on disk. Exit 1 when a file's lines
 // were not all kept, or what was kept is not what the file holds.
 // "i dont want to come back, and find out i missed something"
@@ -21,15 +21,15 @@ EOS";
 int handleKeepSend(const(char)[] node) {
     import direct : sendDirect;
     import nodeconfig : nodeHere;
-    import transcript : projectsRoot;
+    import transcript : transcriptRoots;
     auto here = nodeHere();
     if (here.url.length == 0) { fputs("ground keep send: this ground streams to no node, so nobody signs\n", stderr); return 1; }
-    auto root = projectsRoot();
-    if (root.length == 0) { fputs("ground keep send: no HOME, so no ~/.claude/projects\n", stderr); return 1; }
+    auto roots = transcriptRoots();
+    if (roots.length == 0) { fputs("ground keep send: no HOME, so no ~/.claude/projects or ~/.codex/sessions\n", stderr); return 1; }
     import direct : rememberDirectNode, restDirect;
     import core.stdc.time : time;
     rememberDirectNode(node);
-    auto s = sendDirect(here.url, node, root, 60);
+    auto s = sendDirect(here.url, node, roots, 60);
     if (s.busy || s.halt) restDirect(cast(long) time(null));
     fprintf(stdout, "ground keep send: %lld lines of %lld files sent to %.*s, %lld files stopped at a line it refused\n",
             s.rows, s.files, cast(int) node.length, node.ptr, s.stuck);
@@ -48,21 +48,20 @@ int handleKeepSend(const(char)[] node) {
 
 int handleKeep() {
     import db : openDb, sqlite3_close;
-    import transcript : keepAll, projectsRoot, provenAll;
+    import transcript : keepAll, transcriptRoots, provenAll;
 
     auto db = openDb();
     if (db is null) { fputs("ground keep: the store would not open\n", stderr); return 1; }
     scope (exit) sqlite3_close(db);
 
-    auto root = projectsRoot();
-    if (root.length == 0) { fputs("ground keep: no HOME, so no ~/.claude/projects\n", stderr); return 1; }
-    const(char)[][1] roots = [root];
+    auto roots = transcriptRoots();
+    if (roots.length == 0) { fputs("ground keep: no HOME, so no ~/.claude/projects or ~/.codex/sessions\n", stderr); return 1; }
 
-    auto swept = keepAll(db, roots[]);
+    auto swept = keepAll(db, roots);
     fprintf(stdout, "ground keep: %zu files, %zu lines kept now, %zu files not kept\n",
             swept.files, swept.lines, swept.failed);
 
-    auto proof = provenAll(db, roots[]);
+    auto proof = provenAll(db, roots);
     fprintf(stdout, "ground keep: %zu files hold exactly what was kept, %zu do not\n",
             proof.same, proof.differ);
     foreach (i; 0 .. proof.shown)

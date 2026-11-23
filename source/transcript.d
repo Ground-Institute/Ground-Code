@@ -259,6 +259,8 @@ const(char)[] sessionOfPath(const(char)[] path) {
     while (slash > 0 && path[slash - 1] != '/') slash--;
     auto file = path[slash .. $];
     if (file.length > 6 && file[$ - 6 .. $] == ".jsonl") file = file[0 .. $ - 6];
+    // Codex: rollout-<when>-<session>, the session a 36-character id.
+    if (file.length > 8 + 36 && file[0 .. 8] == "rollout-") return file[$ - 36 .. $];
     if (slash == 0) return file;
 
     auto dir = path[0 .. slash - 1];
@@ -285,8 +287,7 @@ struct Swept {
 // "i dont want to come back, and find out i missed something"
 // Every transcript under each root, main and subagent, read to its end: what
 // was written before ground kept lines, and after a session's last hook. The
-// sky sweeps ~/.claude/projects (sky.d); `ground keep` does it once, by hand.
-// Codex's transcripts are not swept yet: "Codex can be deferred clearly marked not done yet".
+// sky sweeps every root (transcriptRoots, sky.d); `ground keep` does it once, by hand.
 Swept keepAll(sqlite3* db, const(char)[][] roots, size_t cap = WALK_BYTES) {
     Swept sw;
     foreach (root; roots) walkDir(db, root, cap, sw, 0);
@@ -343,13 +344,37 @@ private void walkDir(sqlite3* db, const(char)[] dir, size_t cap, ref Swept sw, i
 
 // ~/.claude/projects, where Claude Code keeps every session's transcript.
 const(char)[] projectsRoot() {
-    import core.stdc.stdlib : getenv;
     __gshared char[4096] buf = 0;
+    return underHome(buf[], "/.claude/projects");
+}
+
+// ~/.codex/sessions, where Codex keeps every session's rollout, by day.
+const(char)[] codexRoot() {
+    __gshared char[4096] buf = 0;
+    return underHome(buf[], "/.codex/sessions");
+}
+
+// Every root whose transcripts are kept and sent: Codex's, then Claude Code's.
+// A pass sends root by root, so a root after one with lines still to send
+// waits: Codex's 22 MB go first, ahead of Claude Code's 2.8 GB (2026-11-23).
+// None while HOME is not set.
+const(char)[][] transcriptRoots() {
+    __gshared const(char)[][2] roots;
+    auto claude = projectsRoot();
+    auto codex = codexRoot();
+    if (claude.length == 0 || codex.length == 0) return null;
+    roots[0] = codex;
+    roots[1] = claude;
+    return roots[];
+}
+
+private const(char)[] underHome(char[] buf, string rest) {
+    import core.stdc.stdlib : getenv;
     auto h = getenv("HOME\0".ptr);
     if (h is null) return null;
     size_t n = 0;
-    while (h[n] && n < 4000) { buf[n] = h[n]; n++; }
-    foreach (c; "/.claude/projects") buf[n++] = c;
+    while (h[n] && n + rest.length < buf.length) { buf[n] = h[n]; n++; }
+    foreach (c; rest) buf[n++] = c;
     return buf[0 .. n];
 }
 

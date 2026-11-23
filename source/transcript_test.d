@@ -286,6 +286,30 @@ unittest {
         == "c21677df-3b62-45ca-848b-27c489e877a0");
     assert(sessionOfPath("/h/.claude/projects/-x/c21677df-3b62-45ca-848b-27c489e877a0/subagents/agent-a5b2.jsonl")
         == "c21677df-3b62-45ca-848b-27c489e877a0", "a subagent's lines belong to the session that started it");
+    // "Codex can be deferred clearly marked not done yet"
+    // Codex keeps a session as rollout-<when>-<session>.jsonl, by day.
+    assert(sessionOfPath("/h/.codex/sessions/2026/11/09/rollout-2026-11-09T13-54-31-01a1c05f-e27a-7443-a2ba-57f1b48c8d72.jsonl")
+        == "01a1c05f-e27a-7443-a2ba-57f1b48c8d72", "a Codex session is the id its rollout ends in");
+}
+
+import transcript : transcriptRoots;
+
+// Codex's transcripts, then Claude Code's: the small root is not kept waiting
+// behind the large one.
+unittest {
+    import core.stdc.stdlib : getenv;
+    import core.sys.posix.stdlib : setenv;
+    char[512] was = 0;
+    auto h = getenv("HOME\0".ptr);
+    size_t n = 0;
+    if (h !is null) while (h[n] && n < was.length - 1) { was[n] = h[n]; n++; }
+    setenv("HOME\0".ptr, "/h\0".ptr, 1);
+    scope (exit) setenv("HOME\0".ptr, was.ptr, 1);
+
+    auto roots = transcriptRoots();
+    assert(roots.length == 2);
+    assert(roots[0] == "/h/.codex/sessions");
+    assert(roots[1] == "/h/.claude/projects");
 }
 
 import transcript : keepAll;
