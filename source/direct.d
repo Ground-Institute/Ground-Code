@@ -469,7 +469,7 @@ private void sendFile(const(char)[] primary, const(char)[] node, const(char)[] p
 
     char[4096] z = 0;
     if (path.length + 1 >= z.length) return;
-    z[0 .. path.length] = path[];
+    { import core.stdc.string : memcpy; memcpy(z.ptr, path.ptr, path.length); }
     auto from = sentUpTo(sentLines, path);
     {
         auto since = stuckAt(stuckLines, path, from);
@@ -580,7 +580,7 @@ private void sendDir(const(char)[] primary, const(char)[] node, const(char)[] di
     if (depth > 8) return;
     char[4096] z = 0;
     if (dir.length + 1 >= z.length) return;
-    z[0 .. dir.length] = dir[];
+    { import core.stdc.string : memcpy; memcpy(z.ptr, dir.ptr, dir.length); }
     auto d = opendir(z.ptr);
     if (d is null) return;
     scope (exit) closedir(d);

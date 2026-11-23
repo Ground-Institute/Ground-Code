@@ -886,7 +886,7 @@ ulong inodeOf(const(char)[] path) {
     import core.sys.posix.sys.stat : stat_t, stat;
     char[4096] z = 0;
     if (path.length == 0 || path.length + 1 >= z.length) return 0;
-    z[0 .. path.length] = path[];
+    { import core.stdc.string : memcpy; memcpy(z.ptr, path.ptr, path.length); }
     stat_t st;
     if (stat(z.ptr, &st) != 0) return 0;
     return cast(ulong) st.st_ino;

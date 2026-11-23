@@ -300,7 +300,7 @@ private void walkDir(sqlite3* db, const(char)[] dir, size_t cap, ref Swept sw, i
 
     char[4096] z = 0;
     if (dir.length + 1 >= z.length) return;
-    z[0 .. dir.length] = dir[];
+    { import core.stdc.string : memcpy; memcpy(z.ptr, dir.ptr, dir.length); }
     auto d = opendir(z.ptr);
     if (d is null) return;
     scope (exit) closedir(d);
@@ -377,7 +377,7 @@ private void proveDir(sqlite3* db, const(char)[] dir, ref Proven p, int depth) {
     if (depth > 8) return;
     char[4096] z = 0;
     if (dir.length + 1 >= z.length) return;
-    z[0 .. dir.length] = dir[];
+    { import core.stdc.string : memcpy; memcpy(z.ptr, dir.ptr, dir.length); }
     auto d = opendir(z.ptr);
     if (d is null) return;
     scope (exit) closedir(d);
@@ -404,7 +404,7 @@ private void proveDir(sqlite3* db, const(char)[] dir, ref Proven p, int depth) {
         if (p.shown < p.paths.length) {
             auto slot = Proven.held[p.shown][];
             auto k = path.length < slot.length ? path.length : slot.length;
-            slot[0 .. k] = path[0 .. k];
+            { import core.stdc.string : memcpy; memcpy(slot.ptr, path.ptr, k); }
             p.paths[p.shown++] = slot[0 .. k];
         }
     }
@@ -418,7 +418,7 @@ bool proveFile(sqlite3* db, const(char)[] path) {
 
     char[4096] z = 0;
     if (path.length + 1 >= z.length) return false;
-    z[0 .. path.length] = path[];
+    { import core.stdc.string : memcpy; memcpy(z.ptr, path.ptr, path.length); }
     auto f = fopen(z.ptr, "rb");
     if (f is null) return false;
     scope (exit) fclose(f);
