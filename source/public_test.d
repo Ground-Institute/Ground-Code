@@ -100,6 +100,26 @@ static assert(() {
     return contains(r, `"run_in_background":true`) && contains(r, `"timeout":120`);
 }());
 
+// "BUG, CANCER THE HOOK ISNT GETTING THE EFFECT I WANT IT TO HAVE"
+// updatedInput replaces the whole tool_input, so the call's own fields go with
+// the rewritten command: its timeout, its background, its description, its
+// sandbox, nested values and escapes as they were.
+static assert(() {
+    char[1024] b;
+    auto r = bashResponse(b[], "ls -la", "", "allow", false, 0, false,
+        `{"command":"ls","timeout":600000,"run_in_background":true,"description":"List \"all\"","dangerouslyDisableSandbox":true,"extra":{"a":[1,"}"]}}`);
+    return contains(r, `"updatedInput":{"command":"ls -la","timeout":600000,"run_in_background":true,"description":"List \"all\"","dangerouslyDisableSandbox":true,"extra":{"a":[1,"}"]}}`);
+}());
+
+// What a control asked for wins over what the call asked for, and the rest of
+// the call's input stays.
+static assert(() {
+    char[1024] b;
+    auto r = bashResponse(b[], "make build", "", "allow", true, 120, false,
+        `{"command":"make build","timeout":600000,"run_in_background":false,"description":"Build"}`);
+    return contains(r, `"updatedInput":{"command":"make build","description":"Build","run_in_background":true,"timeout":120}`);
+}());
+
 // codex 0.163.0 fails the hook, and drops the rewrite and its context, over:
 // "PreToolUse hook returned updatedInput without permissionDecision:allow"
 // Its allow lifts no approval: only the updated input applies.
