@@ -132,7 +132,9 @@ immutable Owner[] owners = [
                           // A session's memory, in step with its Memory Store at the node.
                           "memory",
                           // Which file a tool's row is about, by the file's own repository.
-                          "touch"]),
+                          "touch",
+                          // Every line of a session's transcript, kept and sent to the node.
+                          "transcript"]),
 ];
 
 // Who owns the repos the examples are about. Four owners, each with a world
