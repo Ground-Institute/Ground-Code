@@ -80,6 +80,53 @@ bool isGoverned(const(char)[] file) {
     return governedTarget(lines[0 .. n], file, repo, path);
 }
 
+// "its none of its business"
+// "even when mentioning the file"
+// Whether a name a session mentions is its governance: a control, its
+// instructions, or a file a repository copies into place, by the copy or by
+// the file it comes from. Named on a path boundary, so another file that only
+// ends the same way is not.
+bool governedName(const(char)[] lines, const(char)[] name) {
+    bool endsAs(const(char)[] whole, const(char)[] tail) {
+        if (tail.length == 0 || tail.length > whole.length) return false;
+        if (whole[$ - tail.length .. $] != tail) return false;
+        return tail.length == whole.length || whole[$ - tail.length - 1] == '/';
+    }
+    if (isControl(name)) return true;
+    if (endsAs(name, "CLAUDE.md")) return true;
+    size_t at = 0;
+    while (at < lines.length) {
+        auto end = at;
+        while (end < lines.length && lines[end] != '\n') end++;
+        auto line = lines[at .. end];
+        at = end + 1;
+        const(char)[][3] part;
+        size_t p = 0, start = 0;
+        foreach (k, c; line) {
+            if (c != '\t') continue;
+            if (p < 2) part[p++] = line[start .. k];
+            start = k + 1;
+        }
+        if (p != 2) continue;
+        part[2] = line[start .. $];
+        // The copy named whole or from a directory above it; the source as the
+        // repository names it, or from inside the repository.
+        bool hasDir = false;
+        foreach (c; name) if (c == '/') hasDir = true;
+        if (hasDir && endsAs(part[0], name)) return true;
+        if (part[0] == name) return true;
+        if (endsAs(name, part[2]) || name == part[2]) return true;
+    }
+    return false;
+}
+
+// The same, against the governed lines this machine keeps.
+bool isGovernedName(const(char)[] name) {
+    __gshared char[65536] lines = 0;
+    auto n = readInto(governedFile(), lines[]);
+    return governedName(lines[0 .. n], name);
+}
+
 private size_t readInto(const(char)* path, char[] dest) {
     import core.stdc.stdio : fopen, fread, fclose;
     if (path is null) return 0;

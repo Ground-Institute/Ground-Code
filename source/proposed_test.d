@@ -121,3 +121,19 @@ unittest {
     assert(!pendingInto(db, p), "opened, it no longer waits");
     sqlite3_close(db);
 }
+
+// "its none of its business"
+// "even when mentioning the file"
+// A session is not sent to read its governance because it named it.
+unittest {
+    import proposed : governedName;
+    assert(governedName(governed, "controls/x.pbt"));
+    assert(governedName(governed, "CLAUDE.md"), "instructions are given");
+    assert(governedName(governed, "AgentInstructions/CLAUDE.md"));
+    assert(governedName(governed, "AgentInstructions/settings.json"), "the file a copy comes from");
+    assert(governedName(governed, "/Users/x/.claude/settings.json"), "the copy");
+    assert(governedName(governed, ".claude/settings.json"), "the copy, named from where it is");
+    assert(!governedName(governed, "settings.json"), "another settings.json is not");
+    assert(!governedName(governed, "source/stop.d"));
+    assert(!governedName(governed, "NOTCLAUDE.md"));
+}

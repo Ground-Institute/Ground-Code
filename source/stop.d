@@ -327,6 +327,13 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             foreach (ref f; projectFiles) {
                 if (unreadCount >= unread.length) break;
                 if (!containsExact(lastMsg, f)) continue;
+                // "its none of its business"
+                // "even when mentioning the file"
+                // A session is not sent to open its governance (proposed.d).
+                {
+                    import proposed : isGovernedName;
+                    if (isGovernedName(f)) continue;
+                }
                 if (fileAttestationExists(db, f, sessionId)) continue;
 
                 __gshared ZBuf dedupKey;
