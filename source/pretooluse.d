@@ -1280,9 +1280,11 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
             }
             exitLabel = "file-perm-deny";
             // "we catch what the model wanted to put in there"
-            // A refused control is kept, and the refusal says so (proposed.d).
-            import proposed : isControl, keepProposal;
-            if (isControl(filePath)) {
+            // "detected and PR'ed"
+            // A refused write to governance is kept for its pull request, and
+            // the refusal says so (proposed.d).
+            import proposed : isGoverned, keepProposal;
+            if (isGoverned(filePath)) {
                 import parse : extractWrittenText;
                 __gshared Buf refusal;
                 refusal = Buf.init;

@@ -1,13 +1,18 @@
 module proposed_test;
 
-// "we catch what the model wanted to put in there"
-// "and place it as a commented block"
-// "in my obsidian"
-// "so i want everything, (keep the governance) and more (know how it wanted to modify its own governance)"
+// "claude sessions should no longer be allowed to edit their own governance, so this should be handled like we do the ground pbt's"
+// "detected and PR'ed"
+// "i just wanted to see them in my obsidian, not as another markdown file where i need top copy paste and spend extra effort on removing comments."
 
-import proposed : isControl, commentedInto, placeOf, blockInto, rootOf, keepIn, NOTE;
+import proposed : isControl, governedTarget, branchFor, openPr, Opened, pendingInto, Pending,
+    recordPr, keepInStore;
 import zbuf : ZBuf;
 import matcher : contains;
+import scan : containsExact;
+import db : sqlite3, sqlite3_open, sqlite3_close, applySchema, SQLITE_OK;
+
+enum governed = "/Users/x/.claude/CLAUDE.md\tsbvh-nl/l.sbvh.nl\tAgentInstructions/CLAUDE.md\n"
+    ~ "/Users/x/.claude/settings.json\tsbvh-nl/l.sbvh.nl\tAgentInstructions/settings.json\n";
 
 unittest {
     assert(isControl("/r/controls/stream.pbt"));
@@ -16,155 +21,103 @@ unittest {
 }
 
 unittest {
-    // Every line commented, so what was proposed is read and never runs.
-    __gshared ZBuf b;
-    b.reset();
-    commentedInto("scope {\n  event: \"Stop\"\n}\n", b);
-    assert(b.slice() == "# scope {\n#   event: \"Stop\"\n# }\n");
-    b.reset();
-    commentedInto("one line, no newline", b);
-    assert(b.slice() == "# one line, no newline\n");
-}
-
-enum bindings = "syncbvh\tQNTX/Stories\tteranos/QNTX-Web\tmain\tstories\n"
-    ~ "syncbvh\tsbvh-nl/l.sbvh.nl\tsbvh-nl/l.sbvh.nl\tmain\t.\n";
-
-unittest {
-    // The place the file's repository is bound at in a vault: where the note goes.
-    const(char)[] vault;
-    __gshared ZBuf place;
-    assert(placeOf(bindings, "sbvh-nl/l.sbvh.nl", "controls/stream.pbt", vault, place));
-    assert(vault == "syncbvh");
-    assert(place.slice() == "sbvh-nl/l.sbvh.nl");
-    assert(placeOf(bindings, "teranos/QNTX-Web", "stories/x.pbt", vault, place));
-    assert(place.slice() == "QNTX/Stories");
-    assert(!placeOf(bindings, "teranos/QNTX-Web", "other/x.pbt", vault, place), "a folder not bound has no place");
-    assert(!placeOf(bindings, "teranos/ground", "controls/x.pbt", vault, place));
+    // A copy is governed by the file of the repository it is copied from.
+    const(char)[] repo, path;
+    assert(governedTarget(governed, "/Users/x/.claude/CLAUDE.md", repo, path));
+    assert(repo == "sbvh-nl/l.sbvh.nl" && path == "AgentInstructions/CLAUDE.md");
+    assert(governedTarget(governed, "/Users/x/.claude/settings.json", repo, path));
+    assert(path == "AgentInstructions/settings.json");
+    assert(!governedTarget(governed, "/Users/x/.claude/other.json", repo, path));
 }
 
 unittest {
-    __gshared ZBuf b;
-    b.reset();
-    blockInto(b, "2026-11-21T13:20:05Z", "sess-1", "sbvh-nl/l.sbvh.nl", "controls/stream.pbt", "scope {\n}\n");
-    auto s = b.slice();
-    assert(contains(s, "## 2026-11-21T13:20:05Z"));
-    assert(contains(s, "controls/stream.pbt"));
-    assert(contains(s, "sess-1"));
-    assert(contains(s, "# scope {\n# }\n"), "the proposal, commented");
+    // One branch for one proposal: an agent refused twice proposes once.
+    __gshared ZBuf a, b, c;
+    branchFor("sbvh-nl/l.sbvh.nl", "controls/x.pbt", "scope {\n}\n", a);
+    branchFor("sbvh-nl/l.sbvh.nl", "controls/x.pbt", "scope {\n}\n", b);
+    branchFor("sbvh-nl/l.sbvh.nl", "controls/x.pbt", "scope {\n  event: \"Stop\"\n}\n", c);
+    assert(a.slice() == b.slice());
+    assert(a.slice() != c.slice());
+    assert(a.slice().length == "proposed/".length + 12 && a.slice()[0 .. 9] == "proposed/");
+}
+
+version (Posix) {
+    import fakenode : node, heardAll, http;
+
+    unittest {
+        // The proposal as a pull request: main's head, its tree, the file put in it,
+        // a commit, a branch, and the request to merge it.
+        auto n = node(
+            http!("200 OK", `{"default_branch":"main"}`),
+            http!("200 OK", `{"ref":"refs/heads/main","object":{"sha":"aaa","type":"commit"}}`),
+            http!("200 OK", `{"sha":"aaa","tree":{"sha":"ttt"}}`),
+            http!("201 Created", `{"sha":"bbb"}`),
+            http!("201 Created", `{"sha":"ttt2"}`),
+            http!("201 Created", `{"sha":"ccc"}`),
+            http!("201 Created", `{"ref":"refs/heads/proposed/x"}`),
+            http!("201 Created", `{"html_url":"https://github.com/sbvh-nl/l.sbvh.nl/pull/7","number":7}`));
+        auto o = openPr(n.url(), "tok", "sbvh-nl/l.sbvh.nl", "controls/x.pbt", "scope {\n}\n", "sess-1");
+        auto heard = heardAll(n);
+        assert(o.ok, o.why());
+        assert(o.url() == "https://github.com/sbvh-nl/l.sbvh.nl/pull/7");
+        assert(containsExact(heard, "GET /repos/sbvh-nl/l.sbvh.nl/git/ref/heads/main "));
+        assert(containsExact(heard, "POST /repos/sbvh-nl/l.sbvh.nl/git/blobs "));
+        assert(containsExact(heard, `"content":"scope {\n}\n"`), "the file as the session wrote it");
+        assert(containsExact(heard, `"base_tree":"ttt"`));
+        assert(containsExact(heard, `"path":"controls/x.pbt"`));
+        assert(containsExact(heard, `"parents":["aaa"]`));
+        assert(containsExact(heard, `"ref":"refs/heads/proposed/`));
+        assert(containsExact(heard, `"base":"main"`));
+        assert(containsExact(heard, "sess-1"), "the PR says which session wanted it");
+        assert(containsExact(heard, "Authorization: Bearer tok"));
+    }
+
+    unittest {
+        // The branch is there already: the same proposal was made before.
+        auto n = node(
+            http!("200 OK", `{"default_branch":"main"}`),
+            http!("200 OK", `{"ref":"refs/heads/main","object":{"sha":"aaa"}}`),
+            http!("200 OK", `{"sha":"aaa","tree":{"sha":"ttt"}}`),
+            http!("201 Created", `{"sha":"bbb"}`),
+            http!("201 Created", `{"sha":"ttt2"}`),
+            http!("201 Created", `{"sha":"ccc"}`),
+            http!("422 Unprocessable Entity", `{"message":"Reference already exists"}`));
+        auto o = openPr(n.url(), "tok", "sbvh-nl/l.sbvh.nl", "controls/x.pbt", "scope {\n}\n", "sess-1");
+        heardAll(n);
+        assert(o.ok && o.already, "proposed before is not a failure");
+    }
+
+    unittest {
+        // What GitHub refused is said, with its words.
+        auto n = node(
+            http!("200 OK", `{"default_branch":"main"}`),
+            http!("200 OK", `{"ref":"refs/heads/main","object":{"sha":"aaa"}}`),
+            http!("200 OK", `{"sha":"aaa","tree":{"sha":"ttt"}}`),
+            http!("403 Forbidden", `{"message":"Resource not accessible by integration"}`));
+        auto o = openPr(n.url(), "tok", "sbvh-nl/l.sbvh.nl", "controls/x.pbt", "scope {\n}\n", "sess-1");
+        heardAll(n);
+        assert(!o.ok);
+        assert(contains(o.why(), "403"));
+        assert(contains(o.why(), "Resource not accessible by integration"));
+    }
 }
 
 unittest {
-    assert(rootOf("other\t/a/b\nsyncbvh\t/Users/x/Documents/syncbvh\n", "syncbvh") == "/Users/x/Documents/syncbvh");
-    assert(rootOf("other\t/a/b\n", "syncbvh") == "");
-}
-
-unittest {
-    // The whole of it: a refused control lands in the vault's note, appended.
-    import core.stdc.stdio : fopen, fread, fclose, remove, snprintf;
-    import core.sys.posix.unistd : getpid, rmdir;
-    import db : mkdir;
-    char[256] root = 0;
-    auto rl = snprintf(root.ptr, root.length, "/tmp/ground-proposed-%d", getpid());
-    mkdir(root.ptr, 493);
-    char[512] d = 0;
-    snprintf(d.ptr, d.length, "%s/sbvh-nl", root.ptr); mkdir(d.ptr, 493);
-    snprintf(d.ptr, d.length, "%s/sbvh-nl/l.sbvh.nl", root.ptr); mkdir(d.ptr, 493);
-
-    __gshared ZBuf vaults;
-    vaults.reset();
-    vaults.put("syncbvh\t");
-    vaults.put(root[0 .. rl]);
-    vaults.put("\n");
-
-    auto note = keepIn(bindings, vaults.slice(), "sbvh-nl/l.sbvh.nl", "controls/stream.pbt",
-                       "scope {\n}\n", "sess-1", "2026-11-21T13:20:05Z");
-    assert(note.length > 0, "kept");
-    assert(contains(note, NOTE));
-    auto again = keepIn(bindings, vaults.slice(), "sbvh-nl/l.sbvh.nl", "controls/other.pbt",
-                        "permission {\n}\n", "sess-2", "2026-11-21T13:21:00Z");
-    assert(again == note, "one note holds them all");
-
-    char[600] p = 0;
-    snprintf(p.ptr, p.length, "%s/sbvh-nl/l.sbvh.nl/%.*s", root.ptr, cast(int) NOTE.length, NOTE.ptr);
-    auto f = fopen(p.ptr, "r");
-    assert(f !is null);
-    __gshared char[8192] got = 0;
-    auto n = fread(got.ptr, 1, got.length, f);
-    fclose(f);
-    assert(contains(got[0 .. n], "# scope {"));
-    assert(contains(got[0 .. n], "# permission {"), "the second is appended, the first still there");
-    assert(contains(got[0 .. n], "controls/other.pbt"));
-
-    assert(keepIn(bindings, "", "sbvh-nl/l.sbvh.nl", "controls/x.pbt", "x\n", "s", "t").length == 0,
-           "a vault ground has not seen on this machine is nowhere to write");
-
-    remove(p.ptr);
-    snprintf(d.ptr, d.length, "%s/sbvh-nl/l.sbvh.nl", root.ptr); rmdir(d.ptr);
-    snprintf(d.ptr, d.length, "%s/sbvh-nl", root.ptr); rmdir(d.ptr);
-    rmdir(root.ptr);
-}
-
-// "we should not miss the data"
-// The proposal is a row of the store, whole: its lines, quotes and tabs as written.
-unittest {
-    import proposed : keepInStore, PROPOSED_PREDICATE;
-    import db : sqlite3, sqlite3_open, sqlite3_close, applySchema, SQLITE_OK, SQLITE_ROW,
-        sqlite3_prepare_v2, sqlite3_step, sqlite3_finalize, sqlite3_stmt, sqlite3_column_text;
+    // A proposal waits in the store until its pull request is opened.
     sqlite3* db;
     assert(sqlite3_open(":memory:\0".ptr, &db) == SQLITE_OK);
     assert(applySchema(db));
     enum text = "scope {\n\tevent: \"Stop\"\n  msg: `a \\ b`\n}\n";
-    assert(keepInStore(db, "/r/controls/x.pbt", text, "sess-p", "/r"), "said kept only when it is");
+    assert(keepInStore(db, "/r/controls/x.pbt", text, "sess-p", "/r", "sbvh-nl/l.sbvh.nl", "controls/x.pbt"));
 
-    enum q = "SELECT json_extract(attributes, '$.text'), json_extract(attributes, '$.path') FROM attestations "
-        ~ "WHERE json_extract(predicates, '$[0]') = 'control:proposed'\0";
-    sqlite3_stmt* s;
-    assert(sqlite3_prepare_v2(db, q.ptr, -1, &s, null) == SQLITE_OK);
-    assert(sqlite3_step(s) == SQLITE_ROW, "the row is there");
-    auto t = sqlite3_column_text(s, 0);
-    size_t n = 0;
-    while (t[n] != 0) n++;
-    assert(t[0 .. n] == text, "as it was written");
-    sqlite3_finalize(s);
+    __gshared Pending p;
+    assert(pendingInto(db, p), "one waits");
+    assert(p.repo() == "sbvh-nl/l.sbvh.nl");
+    assert(p.path() == "controls/x.pbt");
+    assert(p.text() == text, "as it was written");
+    assert(p.session() == "sess-p");
+
+    recordPr(db, p.id(), "https://github.com/sbvh-nl/l.sbvh.nl/pull/7");
+    assert(!pendingInto(db, p), "opened, it no longer waits");
     sqlite3_close(db);
-}
-
-// An agent refused a write tries it again: the note holds a proposal once.
-unittest {
-    import core.stdc.stdio : fopen, fread, fclose, remove, snprintf;
-    import core.sys.posix.unistd : getpid, rmdir;
-    import db : mkdir;
-    char[256] root = 0;
-    auto rl = snprintf(root.ptr, root.length, "/tmp/ground-proposed-twice-%d", getpid());
-    mkdir(root.ptr, 493);
-    char[512] d = 0;
-    snprintf(d.ptr, d.length, "%s/sbvh-nl", root.ptr); mkdir(d.ptr, 493);
-    snprintf(d.ptr, d.length, "%s/sbvh-nl/l.sbvh.nl", root.ptr); mkdir(d.ptr, 493);
-    __gshared ZBuf vaults;
-    vaults.reset();
-    vaults.put("syncbvh\t");
-    vaults.put(root[0 .. rl]);
-    vaults.put("\n");
-
-    enum text = "scope {\n  event: \"Stop\"\n}\n";
-    auto first = keepIn(bindings, vaults.slice(), "sbvh-nl/l.sbvh.nl", "controls/a.pbt", text, "s1", "2026-11-21T13:00:00Z");
-    auto again = keepIn(bindings, vaults.slice(), "sbvh-nl/l.sbvh.nl", "controls/a.pbt", text, "s1", "2026-11-21T13:05:00Z");
-    assert(first.length > 0 && again == first, "said kept both times: it is there");
-    keepIn(bindings, vaults.slice(), "sbvh-nl/l.sbvh.nl", "controls/b.pbt", text, "s1", "2026-11-21T13:06:00Z");
-
-    char[600] p = 0;
-    snprintf(p.ptr, p.length, "%s/sbvh-nl/l.sbvh.nl/%.*s", root.ptr, cast(int) NOTE.length, NOTE.ptr);
-    auto f = fopen(p.ptr, "r");
-    __gshared char[8192] got = 0;
-    auto n = fread(got.ptr, 1, got.length, f);
-    fclose(f);
-    size_t blocks = 0;
-    foreach (i; 0 .. n) if (i + 3 <= n && got[i .. i + 3] == "## ") blocks++;
-    assert(blocks == 2, "the same text for the same control once; for another control, its own");
-    assert(!contains(got[0 .. n], "13:05:00Z"));
-
-    remove(p.ptr);
-    snprintf(d.ptr, d.length, "%s/sbvh-nl/l.sbvh.nl", root.ptr); rmdir(d.ptr);
-    snprintf(d.ptr, d.length, "%s/sbvh-nl", root.ptr); rmdir(d.ptr);
-    rmdir(root.ptr);
 }

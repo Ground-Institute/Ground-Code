@@ -583,6 +583,9 @@ int handleSky(int argc, const(char)** argv) {
 
     // "i dont want to come back, and find out i missed something"
     long sweptAt = 0;
+
+    // "detected and PR'ed"
+    long proposeBackoffUntil = 0;
     // "q signs, data direct"
     long directAt = 0;
 
@@ -786,6 +789,24 @@ int handleSky(int argc, const(char)** argv) {
                     auto atMost = paceFailed(pace);
                     streamBackoffUntil = now + pace.wait;
                     if (atMost || pass.odd) streamFailed(sessionId, pass, pace.wait);
+                }
+            }
+            // "claude sessions should no longer be allowed to edit their own governance"
+            // A refused write to governance, kept by the hook, opened as a pull
+            // request here: the hook waits on no network (proposed.d).
+            if (now >= proposeBackoffUntil) {
+                import proposed : pendingInto, Pending, openPr, recordPr;
+                import git : githubToken;
+                __gshared Pending pending;
+                if (pendingInto(db, pending)) {
+                    auto opened = openPr("https://api.github.com", githubToken(), pending.repo(),
+                                         pending.path(), pending.text(), pending.session());
+                    if (opened.ok) recordPr(db, pending.id(), opened.url());
+                    else {
+                        proposeBackoffUntil = now + SHIP_BACKOFF_SEC;
+                        toSentry("sky.propose", "a session's proposal was not opened as a pull request",
+                                 -1, pending.session(), opened.why());
+                    }
                 }
             }
             // Every transcript's lines, once a minute: a line written after its
