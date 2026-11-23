@@ -2,7 +2,8 @@
 // agent it waits for, when it is due on this clock, who said it or is to hear
 // it, what it says, and the id the node names it by.
 export type Line = {
-  way: 'in' | 'out'
+  // An approval is the thing itself, the person's to approve or deny.
+  way: 'in' | 'out' | 'approve'
   to: string
   due: string
   who: string

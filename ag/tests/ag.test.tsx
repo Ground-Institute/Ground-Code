@@ -134,6 +134,33 @@ test('now is pressed twice: once it is [NOW] green, and the second releases', as
   await ui.unmount()
 })
 
+// "SESSION CANT REACH, IT NEEDS REACH LINE(S), IT GETS IN FRONT OF MY VIA AG OR LIVE ACTIVITY AS SOMETHING TO APPROVE,"
+// "AND WITHOUT CHANCE FOR USER ERROR"
+test('an approval is the thing itself: approve twice approves it, deny twice denies it, by its own id', async ($, on) => {
+  const ran: string[][] = []
+  const asked: Asked[] = []
+  const answer = JSON.stringify({ incoming: [], outbound: [], approvals: [
+    { to: 'did:key:z6MkRamen', id: 'a1', says: "REACH is 'lines:scene' of TOKEN on kapteyn, for ramen", at: '09:00' },
+  ] })
+  engine(on, ran, answer, asked)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+
+  expect((await ui.find({ in: 'lines', type: 'Text', text: /^REACH is 'lines:scene' of TOKEN on kapteyn, for ramen$/ }))?.props.bold).toBe(true)
+  expect((await ui.find({ in: 'lines', type: 'Text', text: /^\[approve\]$/ }))?.text).toBe('[approve]')
+  await ui.pointer({ type: 'down', x: 1, y: 0, button: 'left' })
+  expect((await ui.find({ in: 'lines', type: 'Text', text: /^\[APPROVE\]$/ }))?.props.color).toBe('green')
+  expect(asked.some(a => a[0] === '/api/collected/release')).toBe(false)
+  await ui.pointer({ type: 'down', x: 1, y: 0, button: 'left' })
+  expect(asked).toContainEqual(['/api/collected/release', 'a'.repeat(64), '{"to":"did:key:z6MkRamen","id":"a1"}'])
+  asked.length = 0
+  await ui.pointer({ type: 'down', x: 11, y: 0, button: 'left' })
+  expect((await ui.find({ in: 'lines', type: 'Text', text: /^\[DENY\]$/ }))?.props.color).toBe('red')
+  await ui.pointer({ type: 'down', x: 11, y: 0, button: 'left' })
+  expect(asked).toContainEqual(['/api/collected/cancel', 'a'.repeat(64), '{"to":"did:key:z6MkRamen","id":"a1"}'])
+  await ui.unmount()
+})
+
 // "while its forking, you see it right there, at that moment, who to let keep the name, if you dont do anything, nothing happens, otherwise you click the other session, and it gets the name and is the active session at the same time."
 test('a session that branched from this one stands as a row, and a click gives it the name', async ($, on) => {
   const ran: string[][] = []

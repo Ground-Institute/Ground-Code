@@ -18,6 +18,8 @@ type State = {
   deleting?: boolean // [delete] pressed once on the message clicked in: [DELETE]
   releasing?: boolean // [now] pressed once on the message clicked in: [NOW]
   due?: string // the time it is held to, as moved by +-, before it is asked
+  approving?: number // the approval whose [approve] was pressed once: [APPROVE]
+  denying?: number // the approval whose [deny] was pressed once: [DENY]
   typing?: string // what is typed in place of what is said, while editing
 }
 
@@ -74,6 +76,27 @@ const deleteOf = (deleting: boolean) => (deleting ? '[DELETE]' : '[delete]')
 // The +- pairs: hours first, then minutes, each up then down.
 const NUDGE: Record<number, number> = { 0: 60, 1: -60, 3: 5, 4: -5 }
 
+// "SESSION CANT REACH, IT NEEDS REACH LINE(S), IT GETS IN FRONT OF MY VIA AG OR LIVE ACTIVITY AS SOMETHING TO APPROVE,"
+// "AND WITHOUT CHANCE FOR USER ERROR"
+// An approval is the thing itself, with its two presses on its own line,
+// each pressed twice as [delete] is:
+//   [approve] [deny]  REACH is 'lines:scene' of TOKEN on kapteyn, for ramen
+const APPROVE = { approve: 0, deny: 10, says: 18 }
+const approveOf = (on: boolean) => (on ? '[APPROVE]' : '[approve]')
+const denyOf = (on: boolean) => (on ? '[DENY]' : '[deny]')
+
+function onApproval(state: State, at: number, x: number, line: Line): Pressed {
+  if (x >= APPROVE.approve && x < APPROVE.approve + 9) {
+    if (state.approving === at) return { post: { act: 'release', to: line.to, id: line.id }, next: {} }
+    return { next: { approving: at } }
+  }
+  if (x >= APPROVE.deny && x < APPROVE.deny + 6) {
+    if (state.denying === at) return { post: { act: 'cancel', to: line.to, id: line.id }, next: {} }
+    return { next: { denying: at } }
+  }
+  return { next: {} }
+}
+
 // A press on the buttons of the message clicked in.
 function onButtons(state: State, x: number, line: Line, lines: Line[]): Pressed {
   const nudge = NUDGE[x]
@@ -112,7 +135,8 @@ const Ag: ClientModule<Lines, State> = (props, surface) => {
   const { Box, Text } = surface.elements
   const state: State = surface.state ?? {}
   const forks = props.forks ?? []
-  const rows = rowsOf(props.lines, state.open)
+  // An approval opens no buttons: its presses are on its own line.
+  const rows = rowsOf(props.lines, state.open !== undefined && props.lines[state.open]?.way === 'approve' ? undefined : state.open)
   // "yes,"
   // ⑂ Mycelia stays with  ● this session   ○ mycelia on k
   // The name is on the filled one; a click on another moves it there.
@@ -151,6 +175,10 @@ const Ag: ClientModule<Lines, State> = (props, surface) => {
     const row = rows[e.y - (forks.length > 0 ? 1 : 0)]
     const line = row ? props.lines[row.line] : undefined
     if (!row || !line) return
+    if (line.way === 'approve') {
+      apply(onApproval(state, row.line, e.x, line))
+      return
+    }
     apply(row.buttons ? onButtons(state, e.x, line, props.lines) : onLine(state, row.line, e.x, line))
   })
 
@@ -169,6 +197,22 @@ const Ag: ClientModule<Lines, State> = (props, surface) => {
       <Text>{' [esc]'}</Text>
     </Box>
   )
+
+  const approvalOf = (at: number, line: Line) => {
+    const approving = state.approving === at
+    const denying = state.denying === at
+    return (
+      <Box key={`a${at}`} flexDirection="row">
+        <Box flexShrink={0} flexDirection="row">
+          <Text color={approving ? 'green' : undefined} bold={approving}>{approveOf(approving)}</Text>
+          <Text>{' '.repeat(APPROVE.deny - 9)}</Text>
+          <Text color={denying ? 'red' : undefined} bold={denying}>{denyOf(denying)}</Text>
+          <Text>{' '.repeat(APPROVE.says - APPROVE.deny - 6)}</Text>
+        </Box>
+        <Text bold wrap="truncate">{line.says}</Text>
+      </Box>
+    )
+  }
 
   const lineOf = (at: number, line: Line) => {
     const open = state.open === at
@@ -200,7 +244,11 @@ const Ag: ClientModule<Lines, State> = (props, surface) => {
           ))}
         </Box>
       ) : null}
-      {rows.map(row => (row.buttons ? buttonsOf(row.line) : lineOf(row.line, props.lines[row.line] as Line)))}
+      {rows.map(row => {
+        const line = props.lines[row.line] as Line
+        if (line.way === 'approve') return approvalOf(row.line, line)
+        return row.buttons ? buttonsOf(row.line) : lineOf(row.line, line)
+      })}
     </Box>
   )
 }

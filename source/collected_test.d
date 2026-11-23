@@ -88,7 +88,23 @@ unittest {
     assert(said.slice() ==
         `{"incoming":[{"to":"Mycelia","did":"` ~ ME ~ `","due":"05:00","items":[`
         ~ `{"id":"","from":"Shiitake","says":"the build on k is red","at":"23:00"}]}],`
-        ~ `"outbound":[{"to":"Shiitake","did":"` ~ OTHER ~ `","due":"05:01","id":"","says":"Mycelia here","at":"23:01"}]}`,
+        ~ `"outbound":[{"to":"Shiitake","did":"` ~ OTHER ~ `","due":"05:01","id":"","says":"Mycelia here","at":"23:01"}],"approvals":[]}`,
+        said.slice());
+}
+
+// What a refused request lacked stands in every session's ag, whoever's it is:
+// the reach line, by the agent it is of and its own id.
+unittest {
+    enum LACKED = "1000\n" ~ `{"collected":[`
+        ~ `{"to":"ramen","did":"did:key:z6MkRamen","due":"","waiting":[`
+        ~ `{"id":"a1","from":"kapteyn","says":"REACH is 'lines:scene' of TOKEN on kapteyn, for ramen",`
+        ~ `"at":"2026-11-13T22:00:00Z","from_did":"did:key:z6MkK",`
+        ~ `"reach":{"peer":"did:key:z6MkK","path":"lines:scene","to":"TOKEN"}}]}]}`;
+    ZBuf said;
+    assert(collectedJson(LACKED, ME, 1010, 3600, said) == 0, said.slice());
+    assert(said.slice() ==
+        `{"incoming":[],"outbound":[],"approvals":[{"to":"did:key:z6MkRamen","id":"a1",`
+        ~ `"says":"REACH is 'lines:scene' of TOKEN on kapteyn, for ramen","at":"23:00"}]}`,
         said.slice());
 }
 
@@ -103,7 +119,7 @@ unittest {
 unittest {
     ZBuf said;
     assert(collectedJson("1000\n{\"collected\":[]}", ME, 1010, 3600, said) == 0);
-    assert(said.slice() == `{"incoming":[],"outbound":[]}`, said.slice());
+    assert(said.slice() == `{"incoming":[],"outbound":[],"approvals":[]}`, said.slice());
 }
 
 // A time on the clock to hold until is the next such moment, as the node

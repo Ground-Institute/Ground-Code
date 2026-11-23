@@ -26,6 +26,9 @@ type Answer = {
   error?: string
   incoming?: { to: string; did: string; due: string; items: { id: string; from: string; says: string }[] }[]
   outbound?: { to: string; did: string; due: string; id: string; says: string }[]
+  // "SESSION CANT REACH, IT NEEDS REACH LINE(S), IT GETS IN FRONT OF MY VIA AG OR LIVE ACTIVITY AS SOMETHING TO APPROVE,"
+  // What waits on the person to approve, whoever's it is: in every session's ag.
+  approvals?: { to: string; id: string; says: string; at: string }[]
 }
 
 function linesOf(a: Answer): Line[] {
@@ -34,6 +37,8 @@ function linesOf(a: Answer): Line[] {
     for (const item of one.items) lines.push({ way: 'in', to: one.did, due: one.due, who: item.from, says: item.says, id: item.id })
   for (const one of a.outbound ?? [])
     lines.push({ way: 'out', to: one.did, due: one.due, who: one.to, says: one.says, id: one.id })
+  for (const one of a.approvals ?? [])
+    lines.push({ way: 'approve', to: one.to, due: one.at, who: '', says: one.says, id: one.id })
   return lines
 }
 
@@ -100,7 +105,8 @@ function untilOf(hhmm: string): string {
 // The node's path and body for a press, as ground collected asked them.
 function askOf(d: Press): [string, Record<string, string>] {
   const body: Record<string, string> = { to: d.to }
-  if (d.act === 'cancel' && d.id) body.id = d.id
+  // One thing approved or denied by its own id.
+  if ((d.act === 'cancel' || d.act === 'release') && d.id) body.id = d.id
   if (d.act === 'hold' && d.until) body.until = untilOf(d.until)
   if (d.act === 'release' && d.says !== undefined) body.says = d.says
   return [`/api/collected/${d.act}`, body]

@@ -459,6 +459,28 @@ int collectedJson(const(char)[] kept, const(char)[] did, long now, long offset, 
             out_.putChar('}');
         }
     }
+    // "SESSION CANT REACH, IT NEEDS REACH LINE(S), IT GETS IN FRONT OF MY VIA AG OR LIVE ACTIVITY AS SOMETHING TO APPROVE,"
+    // What waits on the person to approve, whatever session it is of: the
+    // reach a refused request lacked, in every ag.
+    out_.put(`],"approvals":[`);
+    bool firstApproval = true;
+    foreach (k; 0 .. n) {
+        auto one = json_object_array_get_idx(all, k);
+        auto waiting = jsonField(one, "waiting");
+        if (json_object_get_type(waiting) != json_type.array) continue;
+        foreach (w; 0 .. json_object_array_length(waiting)) {
+            auto said = json_object_array_get_idx(waiting, w);
+            if (json_object_get_type(jsonField(said, "reach")) != json_type.object) continue;
+            if (!firstApproval) out_.putChar(',');
+            firstApproval = false;
+            out_.putChar('{');
+            field("to", text(jsonField(one, "did")), true);
+            field("id", text(jsonField(said, "id")));
+            field("says", text(jsonField(said, "says")));
+            field("at", clockOf(text(jsonField(said, "at")), offset));
+            out_.putChar('}');
+        }
+    }
     out_.put("]}");
     return 0;
 }
