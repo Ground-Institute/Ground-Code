@@ -604,11 +604,11 @@ private void sendDir(const(char)[] primary, const(char)[] node, const(char)[] di
     }
 }
 
-// Every transcript under root sent on from where it stood, for at most
+// Every transcript under each root sent on from where it stood, for at most
 // `seconds`. `primary` is where the stream posts, the primary's address for the
 // node (…/n/<name>): asked with no path on the node, it signs. `node` is the
 // node itself, reached directly.
-Sent sendDirect(const(char)[] primary, const(char)[] node, const(char)[] root, int seconds) {
+Sent sendDirect(const(char)[] primary, const(char)[] node, const(char)[][] roots, int seconds) {
     import core.stdc.stdio : fopen, fread, fclose;
     import core.stdc.time : time;
     Sent s;
@@ -637,8 +637,10 @@ Sent sendDirect(const(char)[] primary, const(char)[] node, const(char)[] root, i
             sqlite3_close(db);
         }
     }
-    if (!s.halt && cast(long) time(null) < deadline)
+    foreach (root; roots) {
+        if (s.halt || cast(long) time(null) >= deadline) break;
         sendDir(primary, node, root, sentLines[0 .. n], stuckLines[0 .. sn], deadline, s, 0);
+    }
     return s;
 }
 
@@ -719,7 +721,7 @@ void restDirect(long now) {
 // `ground keep send` last sent to, and not while that node is left alone.
 // Nothing is said of a far end that is not there.
 void directPass(const(char)[] streamUrl, const(char)[] sessionId) {
-    import transcript : projectsRoot;
+    import transcript : transcriptRoots;
     import core.sys.posix.fcntl : open, O_CREAT, O_RDWR;
     import core.stdc.time : time;
     import core.sys.posix.unistd : close;
@@ -730,8 +732,8 @@ void directPass(const(char)[] streamUrl, const(char)[] sessionId) {
     auto node = directNodeOf(readSmall("direct-node", nodeBuf[]));
     if (node.length == 0 || node == streamUrl) return;
     if (restOf(readSmall("direct-rest", restBuf[])) > cast(long) time(null)) return;
-    auto root = projectsRoot();
-    if (root.length == 0) return;
+    auto roots = transcriptRoots();
+    if (roots.length == 0) return;
 
     auto at = sentFile();
     if (at is null) return;
@@ -740,7 +742,7 @@ void directPass(const(char)[] streamUrl, const(char)[] sessionId) {
     scope (exit) close(fd);
     if (flock(fd, LOCK_EX | LOCK_NB) != 0) return;
 
-    auto s = sendDirect(streamUrl, node, root, DIRECT_SECONDS);
+    auto s = sendDirect(streamUrl, node, roots, DIRECT_SECONDS);
     if (s.busy || s.halt) restDirect(cast(long) time(null));
     if (!s.ok && !s.unreachable) {
         import errors : sayQuietly;

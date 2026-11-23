@@ -791,14 +791,11 @@ int handleSky(int argc, const(char)** argv) {
             // Every transcript's lines, once a minute: a line written after its
             // session's last hook fired no hook, and is kept here (transcript.d).
             {
-                import transcript : keepAll, projectsRoot, SWEEP_EVERY;
+                import transcript : keepAll, transcriptRoots, SWEEP_EVERY;
                 if (now - sweptAt >= SWEEP_EVERY) {
                     sweptAt = now;
-                    auto root = projectsRoot();
-                    if (root.length > 0) {
-                        const(char)[][1] roots = [root];
-                        cast(void) keepAll(db, roots[]);
-                    }
+                    auto roots = transcriptRoots();
+                    if (roots.length > 0) cast(void) keepAll(db, roots);
                 }
             }
             {
