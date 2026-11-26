@@ -1631,9 +1631,13 @@ private void bindInlineRituals(ref ParseResult result, ref ParsedScope sc,
                 if (roots == 0) root = i;
                 roots++;
             }
-            assert(roots == 1,
-                "a control carrying `ritual { }` needs exactly one path that is not a negation");
-            where = sc.paths[root];
+            // 「[Fable 5.2] A scope that names its repository and no path performs in that repository.」
+            if (roots == 0 && sc.origin.length > 0) where = sc.origin;
+            else {
+                assert(roots == 1,
+                    "a control carrying `ritual { }` needs exactly one path that is not a negation, or its scope's origin");
+                where = sc.paths[root];
+            }
         }
 
         auto name = result.ctrlPool[ci].name;

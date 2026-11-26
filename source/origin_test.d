@@ -110,3 +110,25 @@ project {
 }
 `);
 static assert(held.ctrlPool[0].origin == "a/b");
+
+// 「[Fable 5.2] A control carrying its own ritual, in a scope that names its repository and no path,」
+// 「[Fable 5.2] performs in that repository.」
+enum inlined = parsePbt(rites ~ `
+scope {
+  origin: "a/b"
+  event: "PostToolUse"
+  cmd: "echo held"
+
+  control {
+    name: "held"
+
+    ritual {
+      system: "s"
+
+      walk
+    }
+  }
+}
+`);
+static assert(inlined.rituals[0].name == "held");
+static assert(inlined.rituals[0].projectPath == "a/b");
