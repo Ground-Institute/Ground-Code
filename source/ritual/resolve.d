@@ -116,6 +116,17 @@ import ritual.position : MAX_RITES;
 // from anywhere. The declared projects say where that path is on disk.
 const(char)[] repoRoot(PR)(auto ref const PR r, const(char)[] projectPath) {
     if (projectPath.length == 0) return "";
+    // "is for those paths to also be homed no ?"
+    // 「[Fable 5.2] A project keyed on its repository is where the project declaring that origin with」
+    // 「[Fable 5.2] a place says: a place starts at the root, and a key that is an origin does not.」
+    foreach (i; 0 .. r.projectCount) {
+        if (r.projects[i].origin != projectPath) continue;
+        auto p = r.projects[i].path;
+        if (p.length > 0 && p[0] == '/') return p;
+    }
+    // 「[Fable 5.2] An origin is the tail of no place: where nothing declares that repository with」
+    // 「[Fable 5.2] one, nothing says where it is.」
+    if (projectPath[0] != '/') return "";
     const(char)[] best = "";
     foreach (i; 0 .. r.projectCount) {
         auto p = r.projects[i].path;
