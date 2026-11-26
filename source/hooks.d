@@ -394,7 +394,23 @@ struct Scope {
     // Stands only where the repository is public. Not a path: the answer to a
     // question ground asks about the repository the tool call reaches into.
     bool publicOnly;
+    // "FIX THE TYPED PATHS"
+    // 「[Fable 5.2] The repository the scope is for, as owner/repo. Not a path: the place a」
+    // 「[Fable 5.2] session stands in is a checkout of it or is not, wherever that checkout is.」
+    string origin;
     const(Control)[] controls;
+}
+
+// 「[Fable 5.2] One repository by two spellings: GitHub tells no owner or name from another by case.」
+bool sameRepo(const(char)[] a, const(char)[] b) {
+    if (a.length == 0 || a.length != b.length) return false;
+    foreach (i; 0 .. a.length) {
+        char x = a[i], y = b[i];
+        if (x >= 'A' && x <= 'Z') x += 32;
+        if (y >= 'A' && y <= 'Z') y += 32;
+        if (x != y) return false;
+    }
+    return true;
 }
 
 // What ground knows about a repository's audience.
@@ -443,6 +459,22 @@ bool scopeMatches(S)(const ref S sc, const(char)[] cwd) {
 // Where the command runs, and the repository that place belongs to. A worktree
 // is the project it was cut from, wherever on disk somebody put it.
 bool scopeMatchesIn(S)(const ref S sc, const(char)[] cwd, const(char)[] root) {
+    // 「[Fable 5.2] The repository the place is a checkout of is read only for a scope that names one.」
+    const(char)[] origin = "";
+    static if (__traits(hasMember, S, "origin")) {
+        if (sc.origin.length > 0) {
+            import git : originOf;
+            origin = originOf(cwd);
+        }
+    }
+    return scopeMatchesAt(sc, cwd, root, origin);
+}
+
+// 「[Fable 5.2] The same, told the repository the place is a checkout of.」
+bool scopeMatchesAt(S)(const ref S sc, const(char)[] cwd, const(char)[] root, const(char)[] origin) {
+    static if (__traits(hasMember, S, "origin")) {
+        if (sc.origin.length > 0 && !sameRepo(sc.origin, origin)) return false;
+    }
     // The audience is asked only of a scope that cares, so a scope that never
     // said `public` costs no lookup. Test structs carry no such field.
     static if (__traits(hasMember, S, "publicOnly")) {

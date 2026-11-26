@@ -121,10 +121,12 @@ size_t cueInto(const ref Cue cue, char[] dest) {
 // The gate posttooluse puts on the ritual itself: the repo this place is a
 // checkout of, then the scope. `here` is that repo, asked once by the caller.
 bool standsHere(const ref Cue cue, const(char)[] cwd, const(char)[] here) {
-    import hooks : scopeMatches;
+    import hooks : scopeMatchesAt;
+    import git : repoRoot;
 
     if (cue.origin.length > 0 && here != cue.origin) return false;
-    return scopeMatches(cue, cwd);
+    // 「[Fable 5.2] The caller asked the repository once: the scope is told it, and asks nothing again.」
+    return scopeMatchesAt(cue, cwd, repoRoot(cwd), here);
 }
 
 // One sentence per cue that fires here, joined the way a session's context is.
