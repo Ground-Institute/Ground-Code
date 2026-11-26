@@ -9,7 +9,7 @@ import hooks : Scope, Control;
 import permission : PermissionScope, Permission;
 import proto : ParsedRites, ParsedRitual, ParsedScope, ParsedControl, ParsedPermission,
     ParsedProject, ParsedEnv, ParsedRoute, ParsedAttestation, ParsedModels, ParsedSentry,
-    ParsedQntx, ParsedOrg;
+    ParsedQntx, ParsedOrg, ParsedPerson, ParsedLaye;
 import strop : Strop;
 import backend : Posting;
 
@@ -40,6 +40,9 @@ struct ParsedView {
     ParsedQntx qntx;
     const(ParsedOrg)[] orgs;
     size_t orgCount;
+    const(ParsedPerson)[] people;
+    size_t personCount;
+    ParsedLaye laye;
 }
 
 ParsedView viewOf(PR)(ref immutable PR r) {
@@ -55,7 +58,8 @@ ParsedView viewOf(PR)(ref immutable PR r) {
         r.attestations[0 .. r.attestationCount], r.attestationCount,
         r.stropPool[0 .. r.stropPoolLen], r.stropPoolLen,
         r.models, r.sentry, r.qntx,
-        r.orgs[0 .. r.orgCount], r.orgCount);
+        r.orgs[0 .. r.orgCount], r.orgCount,
+        r.people[0 .. r.personCount], r.personCount, r.laye);
 }
 
 // Everything a sand gives the engine, each set of scopes by the event that collects it.
@@ -100,4 +104,5 @@ enum SAND_ABI = fnv1a(layoutOf!Sand ~ layoutOf!ParsedView ~ layoutOf!Scope ~ lay
     ~ layoutOf!PermissionScope ~ layoutOf!Permission ~ layoutOf!ParsedRites ~ layoutOf!ParsedRitual
     ~ layoutOf!ParsedScope ~ layoutOf!ParsedControl ~ layoutOf!ParsedPermission ~ layoutOf!ParsedProject
     ~ layoutOf!ParsedEnv ~ layoutOf!ParsedRoute ~ layoutOf!ParsedAttestation ~ layoutOf!ParsedModels
-    ~ layoutOf!ParsedSentry ~ layoutOf!ParsedQntx ~ layoutOf!ParsedOrg ~ layoutOf!Strop ~ layoutOf!Posting);
+    ~ layoutOf!ParsedSentry ~ layoutOf!ParsedQntx ~ layoutOf!ParsedOrg ~ layoutOf!ParsedPerson ~ layoutOf!ParsedLaye
+    ~ layoutOf!Strop ~ layoutOf!Posting);

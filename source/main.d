@@ -26,6 +26,10 @@ extern (C) int main(int argc, const(char)** argv) {
             import naming : handleSign;
             return handleSign(argc, argv);
         }
+        if (cmd == "laye") {
+            import administers : handleLaye;
+            return handleLaye();
+        }
         if (cmd == "say") {
             import say : handleSay;
             return handleSay(argc, argv);
