@@ -12,3 +12,15 @@ static assert(!namesNode("project {\n  qntx {\n    url: \"x\"\n  }\n}\n"));
 static assert(!namesNode("scope {\n  event: \"PreToolUse\"\n}\n"));
 static assert(!namesNode("# qntx {\n"));
 static assert(!namesNode("qntxish {\n}\n"));
+
+// "and i want to get rid of the symlink"
+// 「[Fable 5.2] ground's own repository, declared as a project, is told by its origin: by the name it」
+// 「[Fable 5.2] has and the name it had, and GitHub tells neither from the other by case.」
+import machine : isGround;
+
+static assert(isGround("Ground-Institute/Ground-Code"));
+static assert(isGround("ground-institute/ground-code"));
+static assert(isGround("teranos/ground"));
+static assert(!isGround("Ground-Institute/laye"));
+static assert(!isGround("teranos/ground-web"));
+static assert(!isGround(""));
