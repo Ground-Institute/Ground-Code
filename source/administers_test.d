@@ -21,16 +21,16 @@ laye {
 }
 `);
 
-// Who a pbt says administers its laye: the administrator of the org that governs it.
+// 「[Fable 5.2] Who a pbt says administers its laye: the administrator of the org that governs it.」
 static assert(administratorOf(parsed.orgs[0 .. parsed.orgCount], parsed.laye) == "teranos");
 
-// A laye no org governs, or whose org names nobody, has none said.
+// 「[Fable 5.2] A laye no org governs, or whose org names nobody, has none said.」
 enum bare = parsePbt("laye {\n  url: \"https://laye.example\"\n}\n");
 static assert(administratorOf(bare.orgs[0 .. bare.orgCount], bare.laye) == "");
 enum unnamed = parsePbt("org A {\n}\nlaye {\n  url: \"https://laye.example\"\n  org: A\n}\n");
 static assert(administratorOf(unnamed.orgs[0 .. unnamed.orgCount], unnamed.laye) == "");
 
-// What laye is asked, at the laye the pbt names.
+// 「[Fable 5.2] What laye is asked, at the laye the pbt names.」
 unittest {
     ZBuf url;
     askedAt(url, "https://laye.ground.institute", "teranos");
@@ -40,7 +40,7 @@ unittest {
     assert(url.slice() == "https://laye.ground.institute/laye/administrator/teranos");
 }
 
-// laye's yes is the word true beside "administers", and nothing else is one.
+// 「[Fable 5.2] laye's yes is the word true beside "administers", and nothing else is one.」
 static assert(saysYes(`{"administrator":"teranos","administers":true}`));
 static assert(saysYes(`{"administers": true, "administrator": "teranos"}`));
 static assert(!saysYes(`{"administrator":"teranos","administers":false}`));

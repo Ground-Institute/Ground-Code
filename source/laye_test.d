@@ -33,13 +33,13 @@ static assert(parsed.laye.url == "https://laye.ground.institute");
 static assert(parsed.laye.org == "Ground-Institute");
 static assert(validateOrgs(parsed).text() == "");
 
-// Pass 1 walks the same text first.
+// 「[Fable 5.2] Pass 1 walks the same text first.」
 static assert(countPbt(src).totalProjects == 0);
 
-// An org that names no administrator has none.
+// 「[Fable 5.2] An org that names no administrator has none.」
 static assert(parsePbt("org A {\n}\n").orgs[0].administrator == "");
 
-// An org names a person that is there, and a laye an org that is there.
+// 「[Fable 5.2] An org names a person that is there, and a laye an org that is there.」
 enum nobody = parsePbt(`
 org A {
   administrator: nobody
@@ -55,7 +55,7 @@ laye {
 `);
 static assert(validateOrgs(ungoverned).text() == "laye https://laye.example: no org named NOBODY");
 
-// A person is named and holds nothing; a laye says url: and org:, once.
+// 「[Fable 5.2] A person is named and holds nothing; a laye says url: and org:, once.」
 static assert(!__traits(compiles, { enum bad = parsePbt("person {\n}\n"); }));
 static assert(!__traits(compiles, { enum bad = parsePbt("person a {\n  github: \"x\"\n}\n"); }));
 static assert(!__traits(compiles, { enum bad = parsePbt("laye {\n  invite: true\n}\n"); }));

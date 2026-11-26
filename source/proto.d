@@ -139,19 +139,19 @@ struct ParsedOrg {
     ParsedSentry sentry;
     // "i am the administrator of laye ground institute"
     // "why is the relationship defined on the person and not the org"
-    // The person who administers the org, by name. Empty is none.
+    // 「[Fable 5.2] The person who administers the org, by name. Empty is none.」
     string administrator;
 }
 
 // "but laye owns people not ground, ground will always get it from laye"
-// A person, by name, and nothing else: something an org can name.
+// 「[Fable 5.2] A person, by name, and nothing else: something an org can name.」
 struct ParsedPerson {
     string name;
 }
 
 // "that laye itself laye ground institue itself has its own pbt governing itself, and you can see it on github, and that is what verified means"
 // "Ground Institute would be governing laye.ground.institute"
-// The network a pbt is about: where it is, and the org that governs it, by name.
+// 「[Fable 5.2] The network a pbt is about: where it is, and the org that governs it, by name.」
 struct ParsedLaye {
     bool present;
     string url;
@@ -345,13 +345,13 @@ struct ParseResult {
     size_t orgCount;
     ParsedPerson[8] people;
     size_t personCount;
-    // The one laye a pbt is about.
+    // 「[Fable 5.2] The one laye a pbt is about.」
     ParsedLaye laye;
 }
 
 // A project that names an org names one that exists, and a name is one org.
-// So does a laye; and an org that names its administrator names a person that
-// is there.
+// 「[Fable 5.2] So does a laye; and an org that names its administrator names a person that」
+// 「[Fable 5.2] is there.」
 Wrong validateOrgs(PR)(const PR r) {
     foreach (i; 0 .. r.orgCount)
         foreach (j; i + 1 .. r.orgCount)
@@ -1489,7 +1489,7 @@ ParsedOrg parseOrg(ref string input, ref size_t pos, string name) {
     assert(0, "Unterminated org block");
 }
 
-// A person holds nothing: a field inside one is refused rather than skipped.
+// 「[Fable 5.2] A person holds nothing: a field inside one is refused rather than skipped.」
 ParsedPerson parsePerson(ref string input, ref size_t pos, string name) {
     ParsedPerson p;
     p.name = name;
@@ -1504,7 +1504,7 @@ ParsedPerson parsePerson(ref string input, ref size_t pos, string name) {
     assert(0, "Unterminated person block");
 }
 
-// url: and org:, and nothing else.
+// 「[Fable 5.2] url: and org:, and nothing else.」
 ParsedLaye parseLaye(ref string input, ref size_t pos) {
     ParsedLaye l;
     l.present = true;

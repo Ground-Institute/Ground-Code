@@ -4,21 +4,21 @@ module administers;
 // "its the story of someone verifying they can trust laye the network they are about to join, with their agent"
 // "that laye itself laye ground institue itself has its own pbt governing itself, and you can see it on github, and that is what verified means"
 //
-// A pbt says who administers a laye: the administrator of the org that governs
-// it. ground asks that laye whether it says so too.
+// 「[Fable 5.2] A pbt says who administers a laye: the administrator of the org that governs」
+// 「[Fable 5.2] it. ground asks that laye whether it says so too.」
 
 import proto : ParsedOrg, ParsedLaye;
 import zbuf : ZBuf;
 
-// Who a pbt says administers its laye: the administrator of the org that
-// governs it. Empty when no org governs it, or that org names nobody.
+// 「[Fable 5.2] Who a pbt says administers its laye: the administrator of the org that」
+// 「[Fable 5.2] governs it. Empty when no org governs it, or that org names nobody.」
 string administratorOf(const(ParsedOrg)[] orgs, const ParsedLaye laye) {
     if (laye.org.length == 0) return "";
     foreach (ref o; orgs) if (o.name == laye.org) return o.administrator;
     return "";
 }
 
-// What laye is asked: <url>/laye/administrator/<name>, at the laye the pbt names.
+// 「[Fable 5.2] What laye is asked: <url>/laye/administrator/<name>, at the laye the pbt names.」
 void askedAt(ref ZBuf url, const(char)[] laye, const(char)[] name) {
     while (laye.length > 0 && laye[$ - 1] == '/') laye = laye[0 .. $ - 1];
     url.put(laye);
@@ -28,7 +28,7 @@ void askedAt(ref ZBuf url, const(char)[] laye, const(char)[] name) {
 
 private bool blank(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
 
-// laye's yes is the word true beside "administers", and nothing else is one.
+// 「[Fable 5.2] laye's yes is the word true beside "administers", and nothing else is one.」
 bool saysYes(const(char)[] answer) {
     enum key = `"administers"`;
     size_t at = 0;
@@ -44,8 +44,8 @@ bool saysYes(const(char)[] answer) {
     return at + 4 <= answer.length && answer[at .. at + 4] == "true";
 }
 
-// ground laye: the laye this ground's controls name, who its pbt says
-// administers it, and whether that laye says so too. 0 when it does.
+// 「[Fable 5.2] ground laye: the laye this ground's controls name, who its pbt says」
+// 「[Fable 5.2] administers it, and whether that laye says so too. 0 when it does.」
 int handleLaye() {
     import core.stdc.stdio : stdout, stderr, fputs;
     import controls : allOrgs, layeNetwork;
