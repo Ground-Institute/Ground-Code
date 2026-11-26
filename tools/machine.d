@@ -17,3 +17,20 @@ bool namesNode(string pbt) {
     }
     return false;
 }
+
+// "and i want to get rid of the symlink"
+/// 「[Fable 5.2] Whether origin is ground's own repository: by the name it has and the name it had.」
+/// 「[Fable 5.2] GitHub tells neither from the other by case.」
+bool isGround(string origin) {
+    static immutable string[] own = ["ground-institute/ground-code", "teranos/ground"];
+    foreach (name; own) {
+        if (origin.length != name.length) continue;
+        bool same = true;
+        foreach (i, c; origin) {
+            char lower = (c >= 'A' && c <= 'Z') ? cast(char)(c + 32) : c;
+            if (lower != name[i]) { same = false; break; }
+        }
+        if (same) return true;
+    }
+    return false;
+}
