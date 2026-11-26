@@ -10,6 +10,11 @@ module administers;
 import proto : ParsedOrg, ParsedLaye;
 import zbuf : ZBuf;
 
+enum BOOK_COMMAND = q"EOS
+# who this ground's pbt says administers the laye it names, and whether that laye says so too:
+ground laye
+EOS";
+
 // 「[Fable 5.2] Who a pbt says administers its laye: the administrator of the org that」
 // 「[Fable 5.2] governs it. Empty when no org governs it, or that org names nobody.」
 string administratorOf(const(ParsedOrg)[] orgs, const ParsedLaye laye) {
