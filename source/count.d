@@ -59,12 +59,12 @@ PbtCounts countPbt(string input) {
             skipWS(input, pos);
             expect(input, pos, '{');
             skipBlock(input, pos);
-        } else if (wm.base == "models" || wm.base == "sentry" || wm.base == "qntx") {
+        } else if (wm.base == "models" || wm.base == "sentry" || wm.base == "qntx" || wm.base == "laye") {
             // Sized by its own fixed array; consumed so its braces are not read.
             skipWS(input, pos);
             expect(input, pos, '{');
             skipBlock(input, pos);
-        } else if (wm.base == "rites" || wm.base == "org") {
+        } else if (wm.base == "rites" || wm.base == "org" || wm.base == "person") {
             // Named block. Rites are sized by their own fixed arrays, so
             // nothing is counted — but it must be consumed, or the next
             // readWord lands on a brace.

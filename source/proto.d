@@ -137,6 +137,25 @@ struct ParsedOrg {
     // Zero is none stated, and nothing is measured against it.
     long actionsMinutes;
     ParsedSentry sentry;
+    // "i am the administrator of laye ground institute"
+    // "why is the relationship defined on the person and not the org"
+    // The person who administers the org, by name. Empty is none.
+    string administrator;
+}
+
+// "but laye owns people not ground, ground will always get it from laye"
+// A person, by name, and nothing else: something an org can name.
+struct ParsedPerson {
+    string name;
+}
+
+// "that laye itself laye ground institue itself has its own pbt governing itself, and you can see it on github, and that is what verified means"
+// "Ground Institute would be governing laye.ground.institute"
+// The network a pbt is about: where it is, and the org that governs it, by name.
+struct ParsedLaye {
+    bool present;
+    string url;
+    string org;
 }
 
 // One path of a project's spec: the word a reply is matched on, and the text
@@ -324,14 +343,34 @@ struct ParseResult {
     ParsedQntx qntx;
     ParsedOrg[8] orgs;
     size_t orgCount;
+    ParsedPerson[8] people;
+    size_t personCount;
+    // The one laye a pbt is about.
+    ParsedLaye laye;
 }
 
 // A project that names an org names one that exists, and a name is one org.
+// So does a laye; and an org that names its administrator names a person that
+// is there.
 Wrong validateOrgs(PR)(const PR r) {
     foreach (i; 0 .. r.orgCount)
         foreach (j; i + 1 .. r.orgCount)
             if (r.orgs[i].name == r.orgs[j].name)
                 return wrong("org ", r.orgs[i].name, " is declared twice");
+
+    foreach (i; 0 .. r.orgCount) {
+        auto named = r.orgs[i].administrator;
+        if (named.length == 0) continue;
+        bool found = false;
+        foreach (k; 0 .. r.personCount) if (r.people[k].name == named) found = true;
+        if (!found) return wrong("org ", r.orgs[i].name, ": no person named ", named);
+    }
+
+    if (r.laye.org.length > 0) {
+        bool found = false;
+        foreach (k; 0 .. r.orgCount) if (r.orgs[k].name == r.laye.org) found = true;
+        if (!found) return wrong("laye ", r.laye.url, ": no org named ", r.laye.org);
+    }
 
     foreach (i; 0 .. r.projectCount) {
         auto named = r.projects[i].org;
@@ -954,6 +993,21 @@ ParseResult parsePbt(string input) {
             assert(result.orgCount < result.orgs.length, "Org overflow");
             result.orgs[result.orgCount] = parseOrg(input, pos, orgName);
             result.orgCount++;
+        } else if (wm.base == "person") {
+            skipWS(input, pos);
+            assert(isNameStart(input, pos), "a person is named: person <NAME> { }");
+            auto personName = readWord(input, pos);
+            skipWS(input, pos);
+            expect(input, pos, '{');
+            assert(result.personCount < result.people.length, "Person overflow");
+            result.people[result.personCount] = parsePerson(input, pos, personName);
+            result.personCount++;
+        } else if (wm.base == "laye") {
+            skipWS(input, pos);
+            expect(input, pos, '{');
+            assert(!result.laye.present,
+                   "a second top-level laye block would name a second network");
+            result.laye = parseLaye(input, pos);
         } else if (wm.base == "include") {
             // A directive to wind, not a declaration. By the time ground parses
             // sand the directory has already been folded in, so all that is
@@ -961,7 +1015,7 @@ ParseResult parsePbt(string input) {
             skipWS(input, pos);
             cast(void) readValue(input, pos);
         } else {
-            assert(0, "Expected 'scope', 'permission', 'control', 'project', 'attestation', 'rites', 'models', 'sentry', 'org', or 'include'");
+            assert(0, "Expected 'scope', 'permission', 'control', 'project', 'attestation', 'rites', 'models', 'sentry', 'org', 'person', 'laye', or 'include'");
         }
     }
     return result;
@@ -1429,9 +1483,49 @@ ParsedOrg parseOrg(ref string input, ref size_t pos, string name) {
 
         if (key == "github") o.github = val;
         else if (key == "actions_minutes") o.actionsMinutes = parseInt(val);
+        else if (key == "administrator") o.administrator = val;
         else assert(0, "Unknown org field");
     }
     assert(0, "Unterminated org block");
+}
+
+// A person holds nothing: a field inside one is refused rather than skipped.
+ParsedPerson parsePerson(ref string input, ref size_t pos, string name) {
+    ParsedPerson p;
+    p.name = name;
+
+    while (pos < input.length) {
+        skipWS(input, pos);
+        if (pos >= input.length) break;
+        if (input[pos] == '#') { skipLine(input, pos); continue; }
+        if (input[pos] == '}') { pos++; return p; }
+        assert(0, "Unknown person field");
+    }
+    assert(0, "Unterminated person block");
+}
+
+// url: and org:, and nothing else.
+ParsedLaye parseLaye(ref string input, ref size_t pos) {
+    ParsedLaye l;
+    l.present = true;
+
+    while (pos < input.length) {
+        skipWS(input, pos);
+        if (pos >= input.length) break;
+        if (input[pos] == '#') { skipLine(input, pos); continue; }
+        if (input[pos] == '}') { pos++; return l; }
+
+        auto key = readWord(input, pos);
+        skipWS(input, pos);
+        expect(input, pos, ':');
+        skipWS(input, pos);
+        auto val = readValue(input, pos);
+
+        if (key == "url") l.url = val;
+        else if (key == "org") l.org = val;
+        else assert(0, "Unknown laye field");
+    }
+    assert(0, "Unterminated laye block");
 }
 
 // A dsn:, and nothing else. An unknown key is refused rather than skipped: a
