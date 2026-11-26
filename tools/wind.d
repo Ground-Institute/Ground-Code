@@ -102,8 +102,19 @@ void main() {
     // controls in behind you.
     // A project whose controls name the node at the top level is a machine's repository: its
     // controls go only into its own machine's sand, which takes them as its controls/local.
-    import machine : namesNode;
+    import machine : namesNode, isGround;
     foreach (ref proj; extractProjectPaths(sand)) {
+        // "and i want to get rid of the symlink"
+        // 「[Fable 5.2] ground's own repository, declared as a project, holds the controls wind read」
+        // 「[Fable 5.2] first. In a tree built apart from its checkout the two are not one directory,」
+        // 「[Fable 5.2] so it is told by its origin, or every control of ground's lands in sand twice.」
+        {
+            auto named = findProjectWithKey(sand, proj.path, "origin");
+            if (named >= 0 && isGround(findKeyInBlock(sand, cast(size_t) named, "origin"))) {
+                stderr.writefln("wind: skip %s/controls (ground's own, read already)", proj.path);
+                continue;
+            }
+        }
         // This machine's own repository was read already, as controls/local.
         auto own = buildNormalizedPath(absolutePath(proj.path ~ "/controls"));
         if (exists(own) && isDir(own) && !(realDir(own) in seenDirs) && namesNode(readPbtDir(own))) {
