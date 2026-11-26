@@ -5,7 +5,7 @@
 # the notice, however far over budget its hooks run.
 scope {
   event: "Stop"
-  path: "/teranos/ground"
+  path: "/Ground-Code"
 
   control {
     name: "ground-timing"
