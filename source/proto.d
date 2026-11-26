@@ -96,6 +96,9 @@ struct ParsedScope {
     // The scope stands only in a public repository. A fact ground asks GitHub
     // for, not a path anyone maintains.
     bool publicOnly;
+    // "FIX THE TYPED PATHS"
+    // 「[Fable 5.2] The repository the scope is for, as owner/repo. Empty is any.」
+    string origin;
     size_t controlStart, controlEnd;     // indices into ParseResult.ctrlPool
     size_t permStart, permEnd;           // indices into ParseResult.permPool
 
@@ -852,6 +855,7 @@ ScopeSet buildScopes(alias holds = holdsNone)(const ParseResult parsed, string e
         s.decision = decision;
         s.mcpTool = ps.mcpTool;
         s.publicOnly = ps.publicOnly;
+        s.origin = ps.origin;
         s.controls = result.ctrlPool[ctrlStart .. poolLen];
         result.items[result.len] = s;
         result.len++;
@@ -1169,6 +1173,7 @@ void parseScope(ref string input, ref size_t pos, ref ParseResult result,
                     break;
                 case "mcp_tool": sc.mcpTool = val; break;
                 case "public":   sc.publicOnly = (val == "true"); break;
+                case "origin":   sc.origin = val; break;
                 default: assert(0, "Unknown scope field");
             }
         }
@@ -1211,7 +1216,10 @@ void parseProject(ref string input, ref size_t pos, ref ParseResult result,
             pos++;
             assert(result.projectCount < result.projects.length);
             result.projects[result.projectCount].name = projectName;
-            result.projects[result.projectCount].path = projectPath;
+            // "i dont want the quick fix asshole , i keep pushing for it"
+            // 「[Fable 5.2] A project that names its repository and no path is keyed on that origin:」
+            // 「[Fable 5.2] what declares the repository with a place says where it is (ritual/resolve.d).」
+            result.projects[result.projectCount].path = projectPath.length > 0 ? projectPath : projectOrigin;
             result.projects[result.projectCount].origin = projectOrigin;
             result.projects[result.projectCount].maxGoto = projectMaxGoto;
             result.projects[result.projectCount].openapi = projectOpenapi;
@@ -1224,7 +1232,7 @@ void parseProject(ref string input, ref size_t pos, ref ParseResult result,
             // Store env block separately with project path
             if (envCount > 0) {
                 assert(result.envCount < result.envs.length, "Env overflow");
-                result.envs[result.envCount].path = projectPath;
+                result.envs[result.envCount].path = projectPath.length > 0 ? projectPath : projectOrigin;
                 result.envs[result.envCount].keys = envKeys;
                 result.envs[result.envCount].values = envValues;
                 result.envs[result.envCount].count = envCount;
@@ -1255,12 +1263,19 @@ void parseProject(ref string input, ref size_t pos, ref ParseResult result,
             skipWS(input, pos);
             expect(input, pos, '{');
             assert(result.ritualCount < result.rituals.length, "Ritual overflow");
-            result.rituals[result.ritualCount] = parseRitual(input, pos, ritualName, projectPath, projectName);
+            result.rituals[result.ritualCount] = parseRitual(input, pos, ritualName,
+                projectPath.length > 0 ? projectPath : projectOrigin, projectName);
             result.ritualCount++;
         } else if (wm.base == "scope") {
             skipWS(input, pos);
             expect(input, pos, '{');
+            auto scopesBefore = result.scopeCount;
             parseScope(input, pos, result, "", "");
+            // 「[Fable 5.2] A scope in a project that names its repository and no path is that」
+            // 「[Fable 5.2] repository's, unless it names one itself.」
+            if (projectPath.length == 0 && projectOrigin.length > 0)
+                foreach (si; scopesBefore .. result.scopeCount)
+                    if (result.scopes[si].origin.length == 0) result.scopes[si].origin = projectOrigin;
         } else if (wm.base == "control") {
             // A project that names a repo hands the control that repo, and no
             // path decides. One that names none wraps in a scope with path "/".
@@ -1278,10 +1293,8 @@ void parseProject(ref string input, ref size_t pos, ref ParseResult result,
             result.ctrlPoolLen++;
             sc.controlEnd = result.ctrlPoolLen;
             // A project holding a control is what says where its ritual
-            // performs, so a repo-keyed project needs a path to name on disk.
-            assert(projectOrigin.length == 0 || projectPath.length > 0,
-                "a project naming a repo needs a path saying where that repo is on disk");
-            bindInlineRituals(result, sc, projectPath);
+            // performs: by its path, or keyed on the repository it names.
+            bindInlineRituals(result, sc, projectPath.length > 0 ? projectPath : projectOrigin);
             result.scopes[result.scopeCount] = sc;
             result.scopeCount++;
         } else if (wm.base == "models") {
