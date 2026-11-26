@@ -8,7 +8,7 @@ module controls;
 public import hooks;
 import sand.view : Sand, ParsedView;
 import permission : PermissionScope;
-import proto : ParsedRites, ParsedRitual, ParsedAttestation, ParsedOrg, ParsedRoute, ParsedQntx;
+import proto : ParsedRites, ParsedRitual, ParsedAttestation, ParsedOrg, ParsedRoute, ParsedQntx, ParsedLaye;
 import backend : Posting;
 import strop : Strop;
 import sand.builtin : builtinSand;
@@ -59,6 +59,7 @@ const(ParsedAttestation)[] attestations() { return held.parsed.attestations; }
 const(Posting)[] postingList() { return held.postings; }
 const(ParsedOrg)[] allOrgs() { return held.parsed.orgs; }
 ref const(ParsedQntx) qntxNode() { return held.parsed.qntx; }
+ref const(ParsedLaye) layeNetwork() { return held.parsed.laye; }
 const(Strop)[] globalStropPool() { return held.stropPool; }
 
 const(char)[] dsnHere(const(char)[] cwd) {
