@@ -59,7 +59,12 @@ string[] trackedUnder(string path, out string why) {
     auto buf = new char[](1 << 24);
     auto names = g.tracked(buf);
     if (names is null) { why = g.why().idup; return null; }
-    auto here = buildNormalizedPath(absolutePath(path));
+    // "is for those paths to also be homed no ?"
+    // 「[Fable 5.2] The place as the filesystem spells it. A place named as GitHub names its owner,」
+    // 「[Fable 5.2] ~/SBVH/Ground-Institute/laye, is on a disk that folds case the directory」
+    // 「[Fable 5.2] ground-institute/laye: libgit2 says the root in the disk's spelling, and under」
+    // 「[Fable 5.2] the other no tracked file was beneath the place, so none was listed.」
+    auto here = realDir(path);
     import std.path : asRelativePath;
     import std.conv : to;
     auto prefix = here == root ? "" : asRelativePath(here, root).to!string ~ "/";
