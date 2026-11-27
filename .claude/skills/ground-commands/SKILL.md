@@ -30,6 +30,8 @@ ground sign https://api.q.sbvh.nl/n/l/api/plugins
 
 # who this ground's pbt says administers the laye it names, and whether that laye says so too:
 ground laye
+# what this ground's pbt says of its laye, as the data that laye reads:
+ground laye json
 
 # say something to the session that holds a name, as this session, by its own key:
 ground say Slate "the build on k is red"
