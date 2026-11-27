@@ -2,7 +2,7 @@
 module machine;
 
 /// Whether pbt names the node at the top level: a qntx block starting its line, as `ground fmt`
-/// lays every pbt out and code/node.d reads it. Only a machine's controls name the node.
+/// lays every pbt out. Only a machine's controls name the node.
 bool namesNode(string pbt) {
     size_t line = 0;
     while (line < pbt.length) {

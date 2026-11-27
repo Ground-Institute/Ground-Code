@@ -87,14 +87,7 @@ SandLoad holdLanded(const(char)[] home, const(char)[] origin) {
 // under it was one for every agent there, and an agent's build replaced it for all of them; a test on
 // the laptop replaced the owner's, and every hook held the floor. Set, it is the local sand, and the
 // one under HOME is not read; unset or empty, the sand under HOME is, as it always was.
-enum SAND_VAR = "GROUND_SAND";
-
-const(char)[] namedSand() {
-    import core.stdc.stdlib : getenv;
-    auto v = getenv(SAND_VAR);
-    if (v is null) return null;
-    return v[0 .. lengthOf(v)];
-}
+public import comet : SAND_VAR, namedSand;
 
 // 「[Opus 5.5] The room a refusal has: the hook says it as "sandload: <it>" in a 4096-byte result, and that in」
 // 「[Opus 5.5] a 4096-byte exec-result row with the row's own words around it (errors.d formatResult,」

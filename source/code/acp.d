@@ -3007,31 +3007,25 @@ bool answer(const(char)[] line, ref Reply r, ref Sessions sessions) {
 int handleCode() {
     import core.stdc.time : time;
     import db : openDb, sqlite3_close;
-    import code.node : qntxNode;
+    import code.node : nodeOfCode;
     auto sessions = Sessions(cast(ulong) time(null), cast(uint) getpid());
     sessions.settingsEffort = true;
-    sessions.node = qntxNode;
     // "so give it a config per ground per node"
-    // An engine built from the floor names no node: nodes.pbt beside the store does.
-    if (sessions.node.url.length == 0) {
-        import nodeconfig : NodeConfig, loadNodes;
-        __gshared NodeConfig nodes;
-        loadNodes(nodes);
-        if (nodes.why().length > 0) {
-            fwrite(nodes.why().ptr, 1, nodes.why().length, stderr);
+    // 「[Fable 5.2] The node the sand held names, else nodes.pbt's (code/node.d).」
+    {
+        __gshared typeof(nodeOfCode()) found;
+        found = nodeOfCode();
+        if (found.note().length > 0) {
+            fputs("ground code: ", stderr);
+            fwrite(found.note().ptr, 1, found.note().length, stderr);
+            fputs("\n", stderr);
+        }
+        if (found.why().length > 0) {
+            fwrite(found.why().ptr, 1, found.why().length, stderr);
             fputs("\n", stderr);
             return 1;
         }
-        if (nodes.count > 1) {
-            fputs("ground code: nodes.pbt names more than one node, and which one ground code prompts through is not decided\n", stderr);
-            return 1;
-        }
-        if (nodes.count == 1) {
-            sessions.node.present = true;
-            sessions.node.url = cast(string) nodes.nodes[0].url;
-            sessions.node.model = cast(string) nodes.nodes[0].model;
-            sessions.node.gateway = cast(string) nodes.nodes[0].gateway;
-        }
+        sessions.node = found.node;
     }
     // Ground stops rather than degrades: a session no store keeps could not
     // be resumed, and a client told it could would find out too late.
