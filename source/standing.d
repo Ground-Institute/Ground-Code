@@ -18,8 +18,8 @@ enum BIN = "/.ground/bin/";
 version (OSX) enum SAND_FILE = "libground_sand.dylib";
 else enum SAND_FILE = "libground_sand.so";
 
-// The top of the git worktree dir stands in: the nearest directory up whose .git is a file.
-// A .git that is a directory is a checkout of its own, and nothing is returned.
+// 「[Opus 5.5] The top of the git worktree dir stands in: the nearest directory up whose .git is a file.」
+// 「[Opus 5.5] A .git that is a directory is a checkout of its own, and nothing is returned.」
 const(char)[] worktreeOf(const(char)[] dir, char[] buf) {
     import core.sys.posix.sys.stat : stat, stat_t, S_IFMT, S_IFDIR, S_IFREG;
     enum dotgit = "/.git";
@@ -43,7 +43,7 @@ const(char)[] worktreeOf(const(char)[] dir, char[] buf) {
     return buf[0 .. 0];
 }
 
-// The worktree a program at path is the ground of: path is <worktree>/.ground/bin/<name>.
+// 「[Opus 5.5] The worktree a program at path is the ground of: path is <worktree>/.ground/bin/<name>.」
 const(char)[] worktreeOfProgram(const(char)[] path) {
     size_t dir = path.length;
     while (dir > 0 && path[dir - 1] != '/') dir--;
@@ -52,15 +52,15 @@ const(char)[] worktreeOfProgram(const(char)[] path) {
     return at[0 .. $ - BIN.length];
 }
 
-// The worktree whose ground is running, or nothing when it is the machine's.
+// 「[Opus 5.5] The worktree whose ground is running, or nothing when it is the machine's.」
 const(char)[] worktreeOfSelf() {
     import ritual.command : ownBinary;
     return worktreeOfProgram(ownBinary());
 }
 
-// Called first by each program the machine starts by name. Standing in a worktree that holds a
-// ground of its own, the process becomes that ground's program of the same name, with the same
-// arguments and the same stdin. A worktree's own program takes its worktree's sand.
+// 「[Opus 5.5] Called first by each program the machine starts by name. Standing in a worktree that holds a」
+// 「[Opus 5.5] ground of its own, the process becomes that ground's program of the same name, with the same」
+// 「[Opus 5.5] arguments and the same stdin. A worktree's own program takes its worktree's sand.」
 void standWhereStarted(const(char)* name, const(char)** argv) {
     import core.sys.posix.unistd : getcwd, access, X_OK, execv;
     import core.sys.posix.stdlib : realpath;
@@ -92,7 +92,7 @@ void standWhereStarted(const(char)* name, const(char)** argv) {
     target[t] = 0;
     if (access(target.ptr, X_OK) != 0) return;
 
-    // Already that program, by whatever path it was started: it stays.
+    // 「[Opus 5.5] Already that program, by whatever path it was started: it stays.」
     __gshared char[4096] selfZ = 0;
     __gshared char[4096] a = 0;
     __gshared char[4096] b = 0;
@@ -109,7 +109,7 @@ void standWhereStarted(const(char)* name, const(char)** argv) {
     fprintf(stderr, "ground: this worktree's ground at %s did not start; the machine's runs\n", target.ptr);
 }
 
-// GROUND_SAND names the worktree's sand, unless the turn named one already.
+// 「[Opus 5.5] GROUND_SAND names the worktree's sand, unless the turn named one already.」
 private void holdSandOf(const(char)[] top) {
     import core.sys.posix.unistd : access, F_OK;
     import core.sys.posix.stdlib : setenv;
@@ -128,7 +128,7 @@ private void holdSandOf(const(char)[] top) {
     setenv(SAND_VAR.ptr, sand.ptr, 1);
 }
 
-// What a session is told at its start: which ground runs for it, and that it is a worktree's.
+// 「[Opus 5.5] What a session is told at its start: which ground runs for it, and that it is a worktree's.」
 void sayWhichGround(Put)(ref Put ctx) {
     import db : versionString;
     auto wt = worktreeOfSelf();
