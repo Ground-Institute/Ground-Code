@@ -7,6 +7,11 @@ import code : handleCode;
 // 「[Opus 5.5] `ground_code login` is the terminal auth method a client runs; with no」
 // 「[Opus 5.5] arguments it speaks ACP on stdin and stdout.」
 int main(string[] args) {
+    {
+        import core.runtime : Runtime;
+        import standing : standWhereStarted;
+        standWhereStarted("ground_code", cast(const(char)**) Runtime.cArgs.argv);
+    }
     if (args.length == 2 && args[1] == "login") return signIn();
     if (args.length > 1) {
         import core.stdc.stdio : fputs, stderr;

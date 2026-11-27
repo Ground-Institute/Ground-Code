@@ -104,3 +104,6 @@ sesscodex
 bench-ctfe.json
 ag/.claude-plugin/types/
 ag/tsconfig.json
+
+# A worktree's own ground (make install in a worktree, source/standing.d)
+.ground/

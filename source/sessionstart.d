@@ -529,6 +529,28 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         }
     }
 
+    // "and make it clear that that ground is active for that worktree"
+    // The session is told which ground runs for it, and the person sees it when that is a worktree's.
+    {
+        import standing : sayWhichGround, worktreeOfSelf;
+        import db : ZBuf;
+        __gshared ZBuf which;
+        which.reset();
+        sayWhichGround(which);
+        if (any) ctx.put(" | ");
+        {
+            import provenance : jsonEscapeInto;
+            __gshared char[8192] esc = 0;
+            auto n = jsonEscapeInto(which.slice(), esc[]);
+            if (n > 0) ctx.put(esc[0 .. cast(size_t) n]);
+        }
+        any = true;
+        if (worktreeOfSelf().length > 0) {
+            startLine.put(" | ");
+            startLine.put(which.slice());
+        }
+    }
+
     if (any) {
         import parse : writeJsonString;
         fputs(`{"systemMessage":"`, stdout);
