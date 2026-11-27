@@ -17,6 +17,10 @@ enum BOOK_COMMAND = q"EOS
 # say something to the session that holds a name, as this session, by its own key:
 ground say Slate "the build on k is red"
 
+# say it with an A2UI v1.0 surface beside the words: the file holds one A2UI
+# message, or a list of them, each with "version": "1.0":
+ground say Slate --a2ui which-first.json "Which do I do first?"
+
 # whether what was said was received, by the Task the saying answered with:
 ground heard Slate 01a1d0c3-0922-759f-a495-a1e92e3a6851
 
@@ -205,7 +209,131 @@ int handleReceived(int argc, const(char)** argv) {
     return 0;
 }
 
-// ground say <Name> <words>: said to the agent that holds the name, as a Task.
+// "Getting A2UI pieces to show up in another session from this one"
+//
+// A2UI over A2A, the a2ui v1.0 extension specification at the commit laye
+// pins in parity/a2ui_v1.0_36725ee: a DataPart whose metadata mimeType is
+// application/a2ui+json, and whose data is a list of A2UI messages:
+// "It MUST be an array of messages."
+enum A2UI_MIME = "application/a2ui+json";
+
+// Why `surface` is neither one A2UI 1.0 message nor a list of them; empty when
+// it is one of the two.
+const(char)[] notASurface(const(char)[] surface) {
+    import libjsonc : json_object, json_type, json_object_get_type, json_object_array_length,
+        json_object_array_get_idx, json_object_put, jsonField, parseJson,
+        json_object_get_string, json_object_get_string_len;
+    auto value = parseJson(surface);
+    if (value is null) return "the surface is no JSON";
+    scope (exit) json_object_put(value);
+    __gshared ZBuf why;
+    const(char)[] message(json_object* m, size_t at) {
+        why.reset();
+        why.put("the surface's message ");
+        why.putUint(at);
+        if (json_object_get_type(m) != json_type.object) {
+            why.put(" is no JSON object");
+            return why.slice();
+        }
+        auto v = jsonField(m, "version");
+        if (v is null || json_object_get_type(v) != json_type.string_
+            || json_object_get_string(v)[0 .. json_object_get_string_len(v)] != "1.0") {
+            why.put(` says no "version": "1.0"`);
+            return why.slice();
+        }
+        return "";
+    }
+    switch (json_object_get_type(value)) {
+    case json_type.object:
+        return message(value, 0);
+    case json_type.array:
+        auto n = json_object_array_length(value);
+        if (n == 0) return "the surface is a list of no A2UI messages";
+        foreach (i; 0 .. n) {
+            auto said = message(json_object_array_get_idx(value, i), i);
+            if (said.length > 0) return said;
+        }
+        return "";
+    default:
+        return "the surface is neither an A2UI message nor a list of them";
+    }
+}
+
+private bool blank(char c) { return c == ' ' || c == '\n' || c == '\t' || c == '\r'; }
+
+// The send of `words` to a name, and of `surface` beside them when there is
+// one: the A2UI data part, its messages as they were written. Empty when it
+// was written into `body_`; else why not, and nothing was.
+const(char)[] saidBody(ref Reply body_, const(char)[] id, const(char*)[] words, const(char)[] surface) {
+    import hookrun : argLen;
+    size_t from = 0, to = surface.length;
+    while (from < to && blank(surface[from])) from++;
+    while (to > from && blank(surface[to - 1])) to--;
+    surface = surface[from .. to];
+    if (surface.length > 0) {
+        auto why = notASurface(surface);
+        if (why.length > 0) return why;
+    }
+    body_.add(`{"message":{"messageId":"`);
+    body_.add(id);
+    body_.add(`","role":"ROLE_USER","parts":[{"text":"`);
+    foreach (i, w; words) {
+        if (i > 0) body_.add(" ");
+        putEscaped(body_, w[0 .. argLen(w)]);
+    }
+    body_.add(`"}`);
+    if (surface.length > 0) {
+        body_.add(`,{"data":`);
+        if (surface[0] == '[') body_.add(surface);
+        else { body_.add("["); body_.add(surface); body_.add("]"); }
+        body_.add(`,"mediaType":"` ~ A2UI_MIME ~ `","metadata":{"mimeType":"` ~ A2UI_MIME ~ `"}}`);
+    }
+    body_.add(`]},"configuration":{"returnImmediately":true}}`);
+    return "";
+}
+
+// The whole of the file at `path`, read into `into`; or null, and why not in
+// `why`.
+private const(char)[] readSurface(const(char)[] path, ref Reply into, ref ZBuf why) {
+    import core.stdc.stdio : FILE, fopen, fread, fclose, ferror;
+    import core.stdc.errno : errno;
+    import core.stdc.string : strerror;
+    __gshared ZBuf at;
+    at.reset();
+    at.put(path);
+    why.reset();
+    FILE* f = fopen(at.ptr(), "rb");
+    if (f is null) {
+        why.put(path);
+        why.put(": ");
+        auto e = strerror(errno);
+        size_t n = 0;
+        while (e[n] != 0) n++;
+        why.put(e[0 .. n]);
+        return null;
+    }
+    scope (exit) fclose(f);
+    char[4096] chunk;
+    for (;;) {
+        auto n = fread(chunk.ptr, 1, chunk.length, f);
+        if (n > 0) into.add(chunk[0 .. n]);
+        if (n < chunk.length) break;
+    }
+    if (ferror(f)) {
+        why.put(path);
+        why.put(": it was not read whole");
+        return null;
+    }
+    if (into.full) {
+        why.put(path);
+        why.put(": it did not fit in memory");
+        return null;
+    }
+    return into.slice();
+}
+
+// ground say <Name> [--a2ui <file>] <words>: said to the agent that holds the
+// name, as a Task; with the A2UI messages in the file beside the words.
 int handleSay(int argc, const(char)** argv) {
     import core.stdc.stdio : stdout, stderr, fputs;
     import core.stdc.time : time;
@@ -214,11 +342,31 @@ int handleSay(int argc, const(char)** argv) {
     import http : httpPostInto, ToNode;
     import parse : extractJsonString;
 
+    enum usage = "ground say <Name> [--a2ui <file>] <words>: say something to the session that holds the name, with the A2UI surface in the file beside it\n";
     if (argc < 4) {
-        fputs("ground say <Name> <words>: say something to the session that holds the name\n", stderr);
+        fputs(usage, stderr);
         return 2;
     }
     auto name = argv[2][0 .. argLen(argv[2])];
+    int words = 3;
+    Reply surface;
+    scope (exit) surface.dispose();
+    const(char)[] drawn;
+    if (argv[3][0 .. argLen(argv[3])] == "--a2ui") {
+        if (argc < 6) {
+            fputs(usage, stderr);
+            return 2;
+        }
+        __gshared ZBuf unread;
+        drawn = readSurface(argv[4][0 .. argLen(argv[4])], surface, unread);
+        if (drawn is null) {
+            fputs("ground say: ", stderr);
+            unread.put("\n");
+            fputs(unread.ptr(), stderr);
+            return 1;
+        }
+        words = 5;
+    }
     auto who = asking("ground say");
     if (!who.ok) return 1;
 
@@ -228,19 +376,22 @@ int handleSay(int argc, const(char)** argv) {
 
     Reply body_;
     scope (exit) body_.dispose();
-    body_.add(`{"message":{"messageId":"ground-say-`);
     __gshared ZBuf id;
     id.reset();
+    id.put("ground-say-");
     id.putUint(cast(ulong) time(null));
     id.put("-");
     id.putUint(cast(ulong) getpid());
-    body_.add(id.slice());
-    body_.add(`","role":"ROLE_USER","parts":[{"text":"`);
-    foreach (i; 3 .. argc) {
-        if (i > 3) body_.add(" ");
-        putEscaped(body_, argv[i][0 .. argLen(argv[i])]);
+    auto why = saidBody(body_, id.slice(), argv[words .. argc], drawn);
+    if (why.length > 0) {
+        __gshared ZBuf line;
+        line.reset();
+        line.put("ground say: ");
+        line.put(why);
+        line.put("\n");
+        fputs(line.ptr(), stderr);
+        return 1;
     }
-    body_.add(`"}]},"configuration":{"returnImmediately":true}}`);
 
     __gshared char[16384] reply;
     auto r = httpPostInto(url.slice(), body_.slice(), ToNode(who.keyAt), reply[], 60);
