@@ -4,6 +4,10 @@ import core.stdc.stdio : stderr, fputs;
 import hookrun : argLen, printVersion;
 
 extern (C) int main(int argc, const(char)** argv) {
+    {
+        import standing : standWhereStarted;
+        standWhereStarted("ground", argv);
+    }
     // CLI subcommand dispatch — ground shovel <event> <pattern>
     if (argc >= 2) {
         import shovel : handleShovel;

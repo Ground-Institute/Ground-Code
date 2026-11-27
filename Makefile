@@ -240,10 +240,36 @@ tools/keepsand: tools/keepsand.d tools/keep.d
 keep-sand: sand tools/keepsand
 	tools/keepsand .ctfe/sand.projects $(INSTALLED_SAND)
 
+# "more elegant would be"
+# "to just take into account the worktree"
+# "and make it clear that that ground is active for that worktree"
+# 「[Opus 5.5] A tree whose .git is a file is a worktree. Its install is its own: the programs and a」
+# 「[Opus 5.5] sand go to .ground in it, and what the machine runs is not touched (source/standing.d).」
+# 「[Opus 5.5] Its sand folds the controls the machine's sand was folded from, kept beside that sand.」
+WORKTREE := $(shell [ -f .git ] && pwd)
+MACHINE_LOCAL = $(HOME)/.local/share/ground/sand/local
+
+ifneq ($(WORKTREE),)
+install:
+	@if ls $(MACHINE_LOCAL)/*.pbt >/dev/null 2>&1; then \
+		mkdir -p controls/local && rm -f controls/local/*.pbt && cp $(MACHINE_LOCAL)/*.pbt controls/local/; \
+	elif ! ls controls/local/*.pbt >/dev/null 2>&1; then \
+		echo "install: $(MACHINE_LOCAL) holds no controls, so this worktree's sand would be the floor"; exit 1; \
+	fi
+	$(MAKE) build $(BINS) keep-sand
+	mkdir -p .ground/bin .ground/sand
+	for b in ground $(BINS); do cp $$b .ground/bin/$$b.new && mv -f .ground/bin/$$b.new .ground/bin/$$b; done
+	cp $(SAND_LIB) .ground/sand/$(notdir $(SAND_LIB)).new && mv -f .ground/sand/$(notdir $(SAND_LIB)).new .ground/sand/$(notdir $(SAND_LIB))
+	cp .ctfe/sand.projects .ground/sand/$(notdir $(SAND_LIB)).projects
+	@echo "install: ground $$(cat .version) is this worktree's, in $(WORKTREE)/.ground. It runs for sessions standing in $(WORKTREE); the machine's ground is untouched."
+else
 # 「[Opus 5.5] ug is installed by the recipe, after keep-sand has passed: as a prerequisite beside it, make -j」
 # 「[Opus 5.5] could copy ug before the check refused.」
 install: build $(BINS) keep-sand
 	$(MAKE) install-ug
+	mkdir -p $(MACHINE_LOCAL)
+	rm -f $(MACHINE_LOCAL)/*.pbt
+	-cp controls/local/*.pbt $(MACHINE_LOCAL)/ 2>/dev/null
 	mkdir -p $(PREFIX)/bin
 	for b in ground $(BINS); do cp $$b $(PREFIX)/bin/$$b.new && mv -f $(PREFIX)/bin/$$b.new $(PREFIX)/bin/$$b; done
 # "i want FLOOR+LOCALSAND+COMET"
@@ -266,6 +292,7 @@ install: build $(BINS) keep-sand
 # has a point per ground built. Nobody else needs it, and install does not build it.
 	@if [ -x ground_parity ]; then ./ground_parity; else echo "install: ground_parity not built, no point added to the series (make ground_parity)"; fi
 	./ground decay
+endif
 
 # dub keys its cache by version and every commit is a version: 129 builds, 18G.
 DUB_CACHE := $(HOME)/.dub/cache/ground

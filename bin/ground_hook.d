@@ -4,5 +4,7 @@ module ground_hook;
 import hookrun : hookMain;
 
 extern (C) int main(int argc, const(char)** argv) {
+    import standing : standWhereStarted;
+    standWhereStarted("ground_hook", argv);
     return hookMain(argc, argv);
 }

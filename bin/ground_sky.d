@@ -4,5 +4,7 @@ module ground_sky;
 import sky : handleSky;
 
 extern (C) int main(int argc, const(char)** argv) {
+    import standing : standWhereStarted;
+    standWhereStarted("ground_sky", argv);
     return handleSky(argc, argv);
 }
