@@ -870,26 +870,16 @@ int handleSky(int argc, const(char)** argv) {
         }
 
         // Installed over: the next hook starts a sky on the new binary.
-        if (replacedSince(selfBuf[0 .. selfLen], selfInode)) {
-            auto rdb = openDb();
-            if (rdb !is null) {
-                ending(rdb, record, sessionId, tree, myPid, "replaced: a newer ground was installed",
-                       0, polls, startedAt, "info", streamed);
-                sqlite3_close(rdb);
-            }
-            releaseTree(cwd);
-            return 0;
-        }
-
         // The session that spawned this watcher is gone, and only that
         // session's Stop ever replaces it. Without this the loop runs until
         // the machine reboots.
-        if (orphaned(getppid())) {
-            auto odb = openDb();
-            if (odb !is null) {
-                ending(odb, record, sessionId, tree, myPid, "orphaned: the session is gone",
+        auto leaving = whyLeave(replacedSince(selfBuf[0 .. selfLen], selfInode), orphaned(getppid()));
+        if (leaving.length > 0) {
+            auto rdb = openDb();
+            if (rdb !is null) {
+                ending(rdb, record, sessionId, tree, myPid, leaving,
                        0, polls, startedAt, "info", streamed);
-                sqlite3_close(odb);
+                sqlite3_close(rdb);
             }
             releaseTree(cwd);
             return 0;
@@ -916,6 +906,24 @@ ulong inodeOf(const(char)[] path) {
 bool replacedSince(const(char)[] path, ulong started) {
     auto now = inodeOf(path);
     return started != 0 && now != 0 && now != started;
+}
+
+// "isnt there a way for sky to know it's stale ? in terms of release."
+// 「[Fable 5.2] Why a courier with nothing to hand over leaves: it was installed over, or its」
+// 「[Fable 5.2] session is gone. Empty is a courier that stays. Both loops ask it: the tree's」
+// 「[Fable 5.2] courier always did, and a session's own courier never did, so one started on」
+// 「[Fable 5.2] l on 2026-11-26 ran that hour's engine for 9938 passes, the sand no longer its.」
+const(char)[] whyLeave(bool replaced, bool orphan) {
+    if (replaced) return "replaced: a newer ground was installed";
+    if (orphan) return "orphaned: the session is gone";
+    return "";
+}
+
+unittest {
+    assert(whyLeave(false, false) == "", "the same binary and a live session: the courier stays");
+    assert(whyLeave(true, false) == "replaced: a newer ground was installed");
+    assert(whyLeave(false, true) == "orphaned: the session is gone");
+    assert(whyLeave(true, true) == "replaced: a newer ground was installed", "installed over is said first");
 }
 
 // Whether a courier refused the tree carries its own session's messages: only
@@ -990,6 +998,17 @@ int handSession(const(char)[] cwd, const(char)[] sessionId, const(char)[] tree,
         }
     }
 
+    // The binary this courier runs, as it was when it started.
+    import ritual.command : ownBinary;
+    __gshared char[4096] selfBuf = 0;
+    size_t selfLen = 0;
+    {
+        auto self = ownBinary();
+        selfLen = self.length < selfBuf.length ? self.length : selfBuf.length;
+        selfBuf[0 .. selfLen] = self[0 .. selfLen];
+    }
+    auto selfInode = inodeOf(selfBuf[0 .. selfLen]);
+
     __gshared char[4 * MESSAGE_CAP] batchBuf = "";
     long polls = 0;
     while (true) {
@@ -1031,6 +1050,17 @@ int handSession(const(char)[] cwd, const(char)[] sessionId, const(char)[] tree,
                 return 1;
             }
             sqlite3_close(db);
+        }
+        // What waits for the session was handed over first; then, as the tree's courier does.
+        auto leaving = whyLeave(replacedSince(selfBuf[0 .. selfLen], selfInode), orphaned(getppid()));
+        if (leaving.length > 0) {
+            auto ldb = openDb();
+            if (ldb !is null) {
+                ending(ldb, record, sessionId, tree, myPid, leaving, 0, polls, startedAt, "info");
+                sqlite3_close(ldb);
+            }
+            releaseSessionCourier(sessionId);
+            return 0;
         }
         sleep(PASS_SEC);
     }
