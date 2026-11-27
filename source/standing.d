@@ -156,7 +156,7 @@ const(char)* toldFile(const(char)[] sessionId) {
     size_t n = 0;
     while (key[n] != 0) n++;
     if (n < 3 || n + 4 > path.length) return null;
-    // <home>/.qntx/sessions/<id>/key → <home>/.qntx/sessions/<id>/ground
+    // 「[Opus 5.5] <home>/.qntx/sessions/<id>/key → <home>/.qntx/sessions/<id>/ground」
     size_t dir = n;
     while (dir > 0 && key[dir - 1] != '/') dir--;
     foreach (i; 0 .. dir) path[i] = key[i];
@@ -166,7 +166,7 @@ const(char)* toldFile(const(char)[] sessionId) {
     return path.ptr;
 }
 
-// Keeps line as what the session was told about its ground.
+// 「[Opus 5.5] Keeps line as what the session was told about its ground.」
 void keepTold(const(char)[] sessionId, const(char)[] line) {
     import core.stdc.stdio : fopen, fwrite, fclose;
     import db : mkdir;
@@ -176,7 +176,7 @@ void keepTold(const(char)[] sessionId, const(char)[] line) {
     size_t n = 0;
     while (at[n] != 0) n++;
     foreach (i; 0 .. n) dir[i] = at[i];
-    // its two directories, from the outer one in
+    // 「[Opus 5.5] its two directories, from the outer one in」
     size_t cut = n;
     while (cut > 0 && dir[cut - 1] != '/') cut--;
     size_t outer = cut - 1;
@@ -189,7 +189,7 @@ void keepTold(const(char)[] sessionId, const(char)[] line) {
     fclose(f);
 }
 
-// Whether line is other than what the session was last told about its ground.
+// 「[Opus 5.5] Whether line is other than what the session was last told about its ground.」
 bool toldOtherwise(const(char)[] sessionId, const(char)[] line) {
     import core.stdc.stdio : fopen, fread, fclose;
     auto at = toldFile(sessionId);
