@@ -137,3 +137,26 @@ unittest {
     assert(!governedName(governed, "source/stop.d"));
     assert(!governedName(governed, "NOTCLAUDE.md"));
 }
+
+// "in reality / this should have resulted into a pr"
+// 「[Fable 5.2] What a refusal says of what was written: where it goes, and when it goes nowhere.」
+unittest {
+    import proposed : keptWords, notKept;
+    import zbuf : ZBuf;
+    ZBuf held;
+    keptWords(held, "/r/controls/x.pbt", "sbvh-nl/l.sbvh.nl", "controls/x.pbt");
+    assert(held.slice() == " What you wrote is kept, and goes to sbvh-nl/l.sbvh.nl as a pull request on "
+        ~ "controls/x.pbt for the operator. Do not write it elsewhere.", held.slice());
+
+    ZBuf nowhere;
+    keptWords(nowhere, "/home/a/.local/share/ground/nodes.pbt", "", "");
+    assert(nowhere.slice() == " What you wrote is kept in ground's store, and goes to no pull request: "
+        ~ "/home/a/.local/share/ground/nodes.pbt is in no repository, and no repository copies it into place, "
+        ~ "so nothing governs it that the operator could merge. Tell the operator. Do not write it elsewhere.",
+        nowhere.slice());
+
+    ZBuf lost;
+    notKept(lost, "ground's store did not open");
+    assert(lost.slice() == " What you wrote was not kept: ground's store did not open. Tell the operator. "
+        ~ "Do not write it elsewhere.", lost.slice());
+}

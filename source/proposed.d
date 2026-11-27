@@ -479,9 +479,26 @@ const(char)[] keepProposal(const(char)[] file, const(char)[] text, const(char)[]
     }
 
     auto db = openDb();
-    if (db is null) return said.slice();
+    if (db is null) {
+        notKept(said, "ground's store did not open");
+        return said.slice();
+    }
     scope (exit) sqlite3_close(db);
-    if (!keepInStore(db, file, text, session, cwd, repo, inRepo)) return said.slice();
+    if (!keepInStore(db, file, text, session, cwd, repo, inRepo)) {
+        notKept(said, "the row is not in ground's store after writing it");
+        return said.slice();
+    }
+    keptWords(said, file, repo, inRepo);
+    return said.slice();
+}
+
+// "in reality / this should have resulted into a pr"
+// "it means this is not managed"
+// 「[Fable 5.2] What a refusal says of what was written. A file a repository holds, or copies」
+// 「[Fable 5.2] into place, has a pull request to go to. A file no repository governs has none:」
+// 「[Fable 5.2] the write was kept in the store and reached nobody, and the session was told」
+// 「[Fable 5.2] only that it was kept. Now it is said, where it happens.」
+void keptWords(ref ZBuf said, const(char)[] file, const(char)[] repo, const(char)[] inRepo) {
     said.put(" What you wrote is kept");
     if (repo.length > 0) {
         said.put(", and goes to ");
@@ -489,7 +506,18 @@ const(char)[] keepProposal(const(char)[] file, const(char)[] text, const(char)[]
         said.put(" as a pull request on ");
         said.put(inRepo);
         said.put(" for the operator");
+    } else {
+        said.put(" in ground's store, and goes to no pull request: ");
+        said.put(file);
+        said.put(" is in no repository, and no repository copies it into place, so nothing governs it");
+        said.put(" that the operator could merge. Tell the operator");
     }
     said.put(". Do not write it elsewhere.");
-    return said.slice();
+}
+
+// 「[Fable 5.2] What was written and not kept is said too, with why.」
+void notKept(ref ZBuf said, const(char)[] why) {
+    said.put(" What you wrote was not kept: ");
+    said.put(why);
+    said.put(". Tell the operator. Do not write it elsewhere.");
 }
