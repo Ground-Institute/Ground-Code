@@ -142,3 +142,62 @@ void sayWhichGround(Put)(ref Put ctx) {
         ctx.put(" is active for this session: the machine's.");
     }
 }
+
+// "right, to me it makes sense a session should know, but opportunistically,"
+// "so we dont force it via a stop, it comes with one of the tool uses pre or post"
+// 「[Opus 5.5] What a session was last told about its ground is kept beside its key, as `ground`. A」
+// 「[Opus 5.5] session that moves into another tree runs that tree's ground from its next hook on, and」
+// 「[Opus 5.5] the next tool use tells it; one that is told what it was told already hears nothing.」
+const(char)* toldFile(const(char)[] sessionId) {
+    import naming : sessionKeyFile;
+    __gshared char[1024] path = 0;
+    auto key = sessionKeyFile(sessionId);
+    if (key is null) return null;
+    size_t n = 0;
+    while (key[n] != 0) n++;
+    if (n < 3 || n + 4 > path.length) return null;
+    // 「[Opus 5.5] <home>/.qntx/sessions/<id>/key → <home>/.qntx/sessions/<id>/ground」
+    size_t dir = n;
+    while (dir > 0 && key[dir - 1] != '/') dir--;
+    foreach (i; 0 .. dir) path[i] = key[i];
+    enum name = "ground";
+    foreach (i, c; name) path[dir + i] = c;
+    path[dir + name.length] = 0;
+    return path.ptr;
+}
+
+// 「[Opus 5.5] Keeps line as what the session was told about its ground.」
+void keepTold(const(char)[] sessionId, const(char)[] line) {
+    import core.stdc.stdio : fopen, fwrite, fclose;
+    import db : mkdir;
+    auto at = toldFile(sessionId);
+    if (at is null) return;
+    __gshared char[1024] dir = 0;
+    size_t n = 0;
+    while (at[n] != 0) n++;
+    foreach (i; 0 .. n) dir[i] = at[i];
+    // 「[Opus 5.5] its two directories, from the outer one in」
+    size_t cut = n;
+    while (cut > 0 && dir[cut - 1] != '/') cut--;
+    size_t outer = cut - 1;
+    while (outer > 0 && dir[outer - 1] != '/') outer--;
+    dir[outer - 1] = 0; cast(void) mkdir(dir.ptr, 493); dir[outer - 1] = '/';
+    dir[cut - 1] = 0;  cast(void) mkdir(dir.ptr, 493); dir[cut - 1] = '/';
+    auto f = fopen(at, "w");
+    if (f is null) return;
+    fwrite(line.ptr, 1, line.length, f);
+    fclose(f);
+}
+
+// 「[Opus 5.5] Whether line is other than what the session was last told about its ground.」
+bool toldOtherwise(const(char)[] sessionId, const(char)[] line) {
+    import core.stdc.stdio : fopen, fread, fclose;
+    auto at = toldFile(sessionId);
+    if (at is null) return false;
+    auto f = fopen(at, "r");
+    if (f is null) return true;
+    __gshared char[4096] kept = 0;
+    auto n = fread(kept.ptr, 1, kept.length, f);
+    fclose(f);
+    return kept[0 .. n] != line;
+}

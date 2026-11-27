@@ -673,6 +673,21 @@ int handlePostToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sess
         emitProfile(prof);
     }
 
+    // "it comes with one of the tool uses pre or post"
+    // 「[Opus 5.5] A session whose ground is not the one it was last told of is told, once.」
+    {
+        import standing : sayWhichGround, toldOtherwise, keepTold;
+        __gshared ZBuf which;
+        which.reset();
+        sayWhichGround(which);
+        if (sessionId.length > 0 && toldOtherwise(sessionId, which.slice())) {
+            keepTold(sessionId, which.slice());
+            if (controlSaid.len > 0) controlSaid.put(" | ");
+            controlSaid.put("This session's ground changed: ");
+            controlSaid.put(which.slice());
+        }
+    }
+
     emitControlSaid();
     return 0;
 }
