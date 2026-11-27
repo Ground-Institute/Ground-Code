@@ -59,7 +59,7 @@ unittest {
     assert(body_.slice() == `{"message":{"messageId":"ground-say-1-2","role":"ROLE_USER","parts":[{"text":"Which do I do first?"},{"data":[{"version":"1.0","createSurface":{"surfaceId":"which-first","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}],"mediaType":"application/a2ui+json","metadata":{"mimeType":"application/a2ui+json"}}]},"configuration":{"returnImmediately":true}}`, body_.slice());
 
     body_.dispose();
-    auto two = `[{"version":"1.0","createSurface":{"surfaceId":"s","catalogId":"c"}},{"version":"1.0","deleteSurface":{"surfaceId":"s"}}]`;
+    enum two = `[{"version":"1.0","createSurface":{"surfaceId":"s","catalogId":"c"}},{"version":"1.0","deleteSurface":{"surfaceId":"s"}}]`;
     assert(saidBody(body_, "ground-say-1-2", words[], two) == "");
     assert(body_.slice() == `{"message":{"messageId":"ground-say-1-2","role":"ROLE_USER","parts":[{"text":"Which do I do first?"},{"data":` ~ two ~ `,"mediaType":"application/a2ui+json","metadata":{"mimeType":"application/a2ui+json"}}]},"configuration":{"returnImmediately":true}}`, body_.slice());
 }
