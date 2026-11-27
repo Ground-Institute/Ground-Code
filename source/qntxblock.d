@@ -16,6 +16,22 @@ struct ParsedQntx {
     string gateway; // the node signed in to: it answers prompts and gives the sand; url when empty
 }
 
+// 「[Fable 5.2] A sand hands ground code its node as this struct (bin/sand.d, code/node.d). Its」
+// 「[Fable 5.2] layout, folded to one number: a sand built for another layout is not read.」
+enum ulong NODE_ABI = () {
+    import std.conv : to;
+    string s = "ParsedQntx:" ~ to!string(ParsedQntx.sizeof) ~ "{";
+    static foreach (i, field; ParsedQntx.tupleof)
+        s ~= __traits(identifier, field) ~ "@" ~ to!string(ParsedQntx.tupleof[i].offsetof) ~ ":"
+            ~ typeof(field).stringof ~ ";";
+    ulong h = 0xcbf29ce484222325;
+    foreach (c; s) {
+        h ^= cast(ubyte) c;
+        h *= 0x100000001b3;
+    }
+    return h;
+}();
+
 // url:, model: and gateway:, and nothing else.
 ParsedQntx parseQntxBlock(ref string input, ref size_t pos) {
     ParsedQntx q;

@@ -23,9 +23,17 @@ int main(string[] args) {
 // "A signature proves the key, and nothing reusable leaves the node."
 int signIn() {
     import code.login : login;
-    import code.node : qntxNode;
+    import code.node : nodeOfCode;
     import signed : keyFile;
-    import core.stdc.stdio : fwrite, fflush, stdout;
+    import core.stdc.stdio : fwrite, fflush, fputs, stdout, stderr;
     void say(const(char)[] s) { fwrite(s.ptr, 1, s.length, stdout); fflush(stdout); }
-    return login(qntxNode.gateway.length > 0 ? qntxNode.gateway : qntxNode.url, keyFile(), &say);
+    __gshared typeof(nodeOfCode()) found;
+    found = nodeOfCode();
+    if (found.why().length > 0) {
+        fwrite(found.why().ptr, 1, found.why().length, stderr);
+        fputs("\n", stderr);
+        return 1;
+    }
+    auto node = found.node;
+    return login(node.gateway.length > 0 ? node.gateway : node.url, keyFile(), &say);
 }

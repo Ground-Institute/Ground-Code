@@ -364,6 +364,19 @@ private int runQuiet(const(char)*[] args, const(char)* last) {
     return (status >> 8) & 0xff;
 }
 
+// 「[Fable 5.2] Named here, beside the sand's own places: ground code reads it too, and compiles」
+// 「[Fable 5.2] none of what loads a whole sand (sand/load.d, which says why a turn names one).」
+enum SAND_VAR = "GROUND_SAND";
+
+const(char)[] namedSand() {
+    import core.stdc.stdlib : getenv;
+    auto v = getenv(SAND_VAR);
+    if (v is null) return null;
+    size_t n = 0;
+    while (v[n] != 0) n++;
+    return v[0 .. n];
+}
+
 /// Where this machine's own sand is installed by make install: ~/.local/share/ground/sand/SAND_FILE.
 const(char)[] localSandPathInto(const(char)[] home, char[] buf) {
     enum rest = "/.local/share/ground/sand/" ~ SAND_FILE;
