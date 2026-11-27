@@ -530,7 +530,7 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
     }
 
     // "and make it clear that that ground is active for that worktree"
-    // The session is told which ground runs for it, and the person sees it when that is a worktree's.
+    // 「[Opus 5.5] The session is told which ground runs for it, and the person sees it when that is a worktree's.」
     {
         import standing : sayWhichGround, worktreeOfSelf;
         import db : ZBuf;
