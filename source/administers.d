@@ -13,6 +13,8 @@ import zbuf : ZBuf;
 enum BOOK_COMMAND = q"EOS
 # who this ground's pbt says administers the laye it names, and whether that laye says so too:
 ground laye
+# what this ground's pbt says of its laye, as the data that laye reads:
+ground laye json
 EOS";
 
 // 「[Fable 5.2] Who a pbt says administers its laye: the administrator of the org that」
@@ -29,6 +31,32 @@ void askedAt(ref ZBuf url, const(char)[] laye, const(char)[] name) {
     url.put(laye);
     url.put("/laye/administrator/");
     url.put(name);
+}
+
+// "can't we have it work in a way that we dont need to build the same parser twice?"
+// "laye doesnt parse pbt yet."
+// 「[Fable 5.2] What a pbt says of its laye, as data: the laye, the org that governs it, and」
+// 「[Fable 5.2] who administers that org. laye takes it from ground and reads no pbt.」
+// 「[Fable 5.2] False when a value does not fit, and then nothing is to be read from it.」
+bool asData(ref ZBuf data, const(char)[] url, const(char)[] org, const(char)[] administrator) {
+    import provenance : jsonEscapeInto;
+    bool field(const(char)[] key, const(char)[] value, bool last) {
+        char[1024] esc = void;
+        auto n = jsonEscapeInto(value, esc[]);
+        if (n < 0) return false;
+        data.put(`"`);
+        data.put(key);
+        data.put(`":"`);
+        data.put(esc[0 .. n]);
+        data.put(last ? `"` : `",`);
+        return true;
+    }
+    data.put("{");
+    if (!field("url", url, false) || !field("org", org, false)
+        || !field("administrator", administrator, true))
+        return false;
+    data.put("}\n");
+    return true;
 }
 
 private bool blank(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
@@ -51,7 +79,8 @@ bool saysYes(const(char)[] answer) {
 
 // 「[Fable 5.2] ground laye: the laye this ground's controls name, who its pbt says」
 // 「[Fable 5.2] administers it, and whether that laye says so too. 0 when it does.」
-int handleLaye() {
+// 「[Fable 5.2] ground laye json asks nobody: it is what the pbt says, for laye to read.」
+int handleLaye(int argc, const(char)** argv) {
     import core.stdc.stdio : stdout, stderr, fputs;
     import controls : allOrgs, layeNetwork;
     import http : httpGet;
@@ -69,6 +98,21 @@ int handleLaye() {
         say.put(": its pbt names nobody who administers it: laye { org: } and that org's administrator:\n");
         fputs(say.ptr(), stderr);
         return 1;
+    }
+
+    if (argc >= 3) {
+        size_t n = 0;
+        while (argv[2][n] != 0) n++;
+        if (argv[2][0 .. n] != "json") {
+            fputs("ground laye: ground laye, or ground laye json\n", stderr);
+            return 1;
+        }
+        if (!asData(say, laye.url, laye.org, who)) {
+            fputs("ground laye json: what the pbt says of its laye is longer than ground writes\n", stderr);
+            return 1;
+        }
+        fputs(say.ptr(), stdout);
+        return 0;
     }
 
     __gshared ZBuf url;

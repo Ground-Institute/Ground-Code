@@ -4,7 +4,7 @@ module administers_test;
 // "its the story of someone verifying they can trust laye the network they are about to join, with their agent"
 
 import proto : parsePbt;
-import administers : administratorOf, askedAt, saysYes;
+import administers : administratorOf, askedAt, saysYes, asData;
 import zbuf : ZBuf;
 
 enum parsed = parsePbt(`
@@ -46,3 +46,15 @@ static assert(saysYes(`{"administers": true, "administrator": "teranos"}`));
 static assert(!saysYes(`{"administrator":"teranos","administers":false}`));
 static assert(!saysYes(`{"administrator":"true"}`));
 static assert(!saysYes(``));
+
+// "can't we have it work in a way that we dont need to build the same parser twice?"
+// 「[Fable 5.2] What the pbt says of its laye, as the data laye reads.」
+enum string saidUrl = parsed.laye.url;
+enum string saidOrg = parsed.laye.org;
+enum string saidWho = administratorOf(parsed.orgs[0 .. parsed.orgCount], parsed.laye);
+unittest {
+    ZBuf data;
+    assert(asData(data, saidUrl, saidOrg, saidWho));
+    assert(data.slice() ==
+        `{"url":"https://laye.ground.institute","org":"Ground-Institute","administrator":"teranos"}` ~ "\n");
+}

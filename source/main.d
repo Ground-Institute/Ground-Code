@@ -28,7 +28,7 @@ extern (C) int main(int argc, const(char)** argv) {
         }
         if (cmd == "laye") {
             import administers : handleLaye;
-            return handleLaye();
+            return handleLaye(argc, argv);
         }
         if (cmd == "say") {
             import say : handleSay;
