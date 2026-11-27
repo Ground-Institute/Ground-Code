@@ -89,9 +89,11 @@ int collectedFor(const(char)[] kept, const(char)[] did, long now, long offset, r
             line(text(jsonField(one, "due")), " <-- ", text(jsonField(said, "from")), text(jsonField(said, "says")));
         }
     }
-    // What goes out: what did said that waits for another.
+    // What goes out: what did said that waits for another. What it said to
+    // itself came in, and was said there.
     foreach (k; 0 .. n) {
         auto one = json_object_array_get_idx(all, k);
+        if (text(jsonField(one, "did")) == did) continue;
         auto waiting = jsonField(one, "waiting");
         if (json_object_get_type(waiting) != json_type.array) continue;
         foreach (w; 0 .. json_object_array_length(waiting)) {
@@ -440,8 +442,10 @@ int collectedJson(const(char)[] kept, const(char)[] did, long now, long offset, 
     }
     out_.put(`],"outbound":[`);
     bool firstOut = true;
+    // What it said to itself is incoming, and is there alone.
     foreach (k; 0 .. n) {
         auto one = json_object_array_get_idx(all, k);
+        if (text(jsonField(one, "did")) == did) continue;
         auto waiting = jsonField(one, "waiting");
         if (json_object_get_type(waiting) != json_type.array) continue;
         foreach (w; 0 .. json_object_array_length(waiting)) {

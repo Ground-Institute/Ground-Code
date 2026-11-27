@@ -92,6 +92,23 @@ unittest {
         said.slice());
 }
 
+// "yeah, because i actually do see myself using it like that as well, a way to schedule something into the future for itself."
+// What a session says to itself comes in, and is said once, as that.
+enum SELF = "1000\n" ~ `{"collected":[`
+    ~ `{"to":"Weft","did":"` ~ ME ~ `","due":"2026-11-14T04:00:00Z","waiting":[`
+    ~ `{"id":"s1","from":"Weft","says":"observe one send","at":"2026-11-13T22:00:00Z","from_did":"` ~ ME ~ `"}]}]}`;
+unittest {
+    ZBuf said;
+    assert(collectedFor(SELF, ME, 1010, 3600, said) == 0, said.slice());
+    assert(said.slice() == "05:00 <-- Weft: \"observe one send\"\n", said.slice());
+    said.reset();
+    assert(collectedJson(SELF, ME, 1010, 3600, said) == 0, said.slice());
+    assert(said.slice() ==
+        `{"incoming":[{"to":"Weft","did":"` ~ ME ~ `","due":"05:00","items":[`
+        ~ `{"id":"s1","from":"Weft","says":"observe one send","at":"23:00"}]}],"outbound":[]}`,
+        said.slice());
+}
+
 // What kept mycelia from an answer is the error ag draws.
 unittest {
     ZBuf said;
