@@ -537,6 +537,10 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         __gshared ZBuf which;
         which.reset();
         sayWhichGround(which);
+        {
+            import standing : keepTold;
+            keepTold(sessionId, which.slice());
+        }
         if (any) ctx.put(" | ");
         {
             import provenance : jsonEscapeInto;

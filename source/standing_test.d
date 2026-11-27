@@ -62,3 +62,44 @@ unittest {
     rm[n] = 0;
     system(rm.ptr);
 }
+
+// "right, to me it makes sense a session should know, but opportunistically,"
+// 「[Opus 5.5] A session is told its ground when it is other than what it was last told, and only then.」
+unittest {
+    import standing : keepTold, toldOtherwise;
+    import core.sys.posix.stdlib : mkdtemp, setenv, unsetenv;
+    import core.stdc.stdlib : getenv, system;
+    import db : mkdir;
+
+    __gshared char[4096] was = 0;
+    auto old = getenv("HOME");
+    size_t ol = 0;
+    if (old !is null) { while (old[ol] != 0) { was[ol] = old[ol]; ol++; } }
+    __gshared char[64] home = "/tmp/ground-told-XXXXXX\0";
+    assert(mkdtemp(home.ptr) !is null);
+    __gshared char[128] qntx = 0;
+    size_t hl = 0;
+    while (home[hl] != 0) { qntx[hl] = home[hl]; hl++; }
+    foreach (i, c; "/.qntx") qntx[hl + i] = c;
+    assert(mkdir(qntx.ptr, 493) == 0);
+    setenv("HOME", home.ptr, 1);
+
+    enum machine = "ground 6be4de6 is active for this session: the machine's.";
+    enum worktree = "ground v0.20.0-38 is active for this session: the ground installed in the worktree /w";
+    assert(toldOtherwise("told-1", machine));   // never told
+    keepTold("told-1", machine);
+    assert(!toldOtherwise("told-1", machine));  // told this already
+    assert(toldOtherwise("told-1", worktree));  // moved into a worktree
+    keepTold("told-1", worktree);
+    assert(!toldOtherwise("told-1", worktree));
+    assert(toldOtherwise("told-1", machine));   // moved back
+    assert(!toldOtherwise("../x", machine));    // an id that is no file name is never told
+
+    if (ol > 0) setenv("HOME", was.ptr, 1); else unsetenv("HOME");
+    __gshared char[128] rm = 0;
+    size_t n = 0;
+    foreach (c; "rm -rf ") rm[n++] = c;
+    foreach (c; home[0 .. hl]) rm[n++] = c;
+    rm[n] = 0;
+    system(rm.ptr);
+}
