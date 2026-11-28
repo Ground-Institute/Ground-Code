@@ -17,7 +17,7 @@ import libjsonc : json_object, json_type, json_object_get_type, json_object_get_
 enum DEVICE_PATH = "/auth/device";
 enum TOKEN_PATH = "/auth/token";
 // The name the person reads at home before they say yes, and the grant is labelled with.
-enum LABEL = "ground code";
+public import signed : LABEL;
 // 「[Opus 5.5] RFC 8628 §3.4's grant_type.」
 enum DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 // 「[Opus 5.5] RFC 8628 §3.5: "the interval MUST be increased by 5 seconds for this and all subsequent requests".」
