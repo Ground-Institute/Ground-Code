@@ -55,7 +55,7 @@ unittest {
     foreach (i, c; jwt) if (c == '.') { if (dots++ == 0) first = i; else second = i; }
     assert(dots == 2, jwt);
 
-    // The claims, read back: who, for which node, until when, its id, and its name.
+    // 「[Opus 5.5] The claims, read back: who, for which node, until when, its id, and its name.」
     ZBuf claims;
     claims.put(`{"iss":"did:key:z6MkiTBz1ymuepAQ4HEHYSF1H8quG5GLVVQR3djdX3mDooWp","sub":"did:key:z6MkiTBz1ymuepAQ4HEHYSF1H8quG5GLVVQR3djdX3mDooWp","aud":"https://api.q.sbvh.nl","exp":1800000060,"jti":"000102030405060708090a0b0c0d0e0f","label":"ground code"}`);
     ZBuf want;
