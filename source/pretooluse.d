@@ -756,7 +756,13 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
     pendingWhy = null;
     pendingDeny = null;
     scrubSaid = null;
-    if (computeRewrite(input, toolName, cwd)) {
+    // "i did not stop wanting it"
+    // 「[Opus 5.5] A rewrite is a control's too: with gates off none is made, the fixtures」
+    // 「[Opus 5.5] included. On 2026-11-28 gates off was said and a login's own address was」
+    // 「[Opus 5.5] still made a fixture before it ran.」
+    import gates : gatesOff;
+    immutable rewritesLifted = gatesOff(sessionId);
+    if (!rewritesLifted && computeRewrite(input, toolName, cwd)) {
         import fired : noteFiredNow;
         noteFiredNow(sessionId, "PreToolUse", "rewrite", "rewrite", "rewrite", cwd);
     }
@@ -771,7 +777,7 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
     // A command's text leaves with it: a commit message, a PR body, a heredoc,
     // a request. What names a person in one is a fixture before it runs.
     bool commandScrubbed = false;
-    if (command !is null) {
+    if (command !is null && !rewritesLifted) {
         import git : repoRoot;
         import pii : scrub;
         import controls : parsedOnce;

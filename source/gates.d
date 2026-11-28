@@ -4,7 +4,7 @@ module gates;
 // "i need to be able to say gates off"
 // "and just have a model cruise"
 // A person who says `gates off` in a session lifts every control's gate there:
-// no PreToolUse control denies or asks, and no Stop control holds the turn.
+// 「[Opus 5.5] no PreToolUse control denies, asks or rewrites, and no Stop control holds the turn.」
 // `gates on` puts them back. The latest one said decides, and gates are on
 // until one is. Read from the prompts only: an assistant cannot put a row
 // where this looks.
