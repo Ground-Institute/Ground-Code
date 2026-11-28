@@ -11,6 +11,9 @@ module errored;
 
 import errors : GroundError;
 
+// What ground errored prints once the error is left for Sentry.
+enum TOLD = "left for Sentry\n\0";
+
 // The error a person was shown: from where, what, for which session, when.
 GroundError errorOf(const(char)[] origin, const(char)[] what, const(char)[] sessionId, long now) {
     GroundError err;
@@ -40,5 +43,9 @@ int handleErrored(int argc, const(char)** argv) {
     auto err = errorOf(argv[2][0 .. argLen(argv[2])], argv[3][0 .. argLen(argv[3])],
         sid is null ? "" : sid[0 .. n], cast(long) time(null));
     reportQuietly(err);
+    // What the caller believes, and nothing else: a ground without this
+    // command prints its version and exits 0, and ag took that for told.
+    import core.stdc.stdio : stdout;
+    fputs(TOLD.ptr, stdout);
     return 0;
 }
