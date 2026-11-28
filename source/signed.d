@@ -125,6 +125,14 @@ const(char)[] originOf(const(char)[] url) {
     return url[0 .. end];
 }
 
+// 「[Opus 5.5] What ground's key calls itself: the name a node holds it under, said in」
+// 「[Opus 5.5] every signature, and the name its grant is labelled with when the person」
+// 「[Opus 5.5] signs ground in (code/login.d). A node told of a key it holds nothing for」
+// 「[Opus 5.5] hands laye this name, and a key with no name was refused admission at q」
+// 「[Opus 5.5] on 2026-11-28 at 09:03:34, with QNTX's words:」
+// "person, peer, did and label are each named"
+enum LABEL = "ground code";
+
 // The Authorization line a request to url goes with, signed by key at now
 // (seconds since the epoch), with jti as its id: the scheme, a header, the
 // claims, and the signature over both.
@@ -148,6 +156,8 @@ void putSigned(ref ZBuf out_, const(char)[] url, ref const Key key, long now, co
         claims.putChar(hex[b >> 4]);
         claims.putChar(hex[b & 15]);
     }
+    claims.put(`","label":"`);
+    claims.put(LABEL);
     claims.put(`"}`);
 
     signing.reset();
